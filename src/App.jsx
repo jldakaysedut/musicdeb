@@ -1,24 +1,40 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { supabase } from './supabaseClient'
 
-// Import natin yung mga pages na ginawa mo
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 
 function App() {
+  const [session, setSession] = useState(null)
+
+  useEffect(() => {
+    // I-check agad kung may naka-login pagka-open ng app
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+
+    // Bantayan kung maglo-login o maglo-logout yung user
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <Router>
-      {/* Balot natin sa isang div na may dark background para pasok sa aesthetic natin */}
-      <div className="min-h-screen bg-[#121212] text-white font-sans">
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-green-500 selection:text-black">
         <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          {/* Kung naka-login na, ibato sa dashboard. Kung hindi, ipakita ang Landing/Login */}
+          <Route path="/" element={!session ? <Landing /> : <Navigate to="/dashboard" />} />
+          <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" />} />
+          <Route path="/register" element={!session ? <Register /> : <Navigate to="/dashboard" />} />
           
-          {/* Protected Route (Sa ngayon open muna, lalagyan natin ng lock later) */}
-          <Route path="/dashboard" element={<Dashboard />} />
+          {/* Kung hindi naka-login, bawal pumasok dito. Ibato sa login page. */}
+          <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </Router>

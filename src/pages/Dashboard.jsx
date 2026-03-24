@@ -1,114 +1,201 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
+import { Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, UploadCloud, LogOut } from 'lucide-react'
 
 export default function Dashboard() {
   const [tracks, setTracks] = useState([])
+  const [file, setFile] = useState(null)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
-  const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [showUpload, setShowUpload] = useState(false) // Toggle for mobile upload form
 
-  useEffect(() => {
-    fetchTracks()
-  }, [])
+  // --- AUDIO PLAYER STATE ---
+  const audioRef = useRef(null)
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [isShuffle, setIsShuffle] = useState(false)
+  const [isRepeat, setIsRepeat] = useState(false)
+
+  useEffect(() => { fetchTracks() }, [])
 
   const fetchTracks = async () => {
-    const { data, error } = await supabase.from('tracks').select('*').order('created_at', { ascending: false })
-    if (!error) setTracks(data)
+    const { data } = await supabase.from('tracks').select('*').order('created_at', { ascending: false })
+    if (data) setTracks(data)
   }
 
   const handleUpload = async (e) => {
     e.preventDefault()
     if (!file) return alert("Select a file bro!")
     setUploading(true)
-    
     const filePath = `${Date.now()}.${file.name.split('.').pop()}`
     const { error: uploadError } = await supabase.storage.from('music-bucket').upload(filePath, file)
     
     if (!uploadError) {
       const { data: publicUrlData } = supabase.storage.from('music-bucket').getPublicUrl(filePath)
       await supabase.from('tracks').insert([{ title, artist, file_url: publicUrlData.publicUrl }])
-      setTitle(''); setArtist(''); setFile(null); fetchTracks()
+      setTitle(''); setArtist(''); setFile(null); setShowUpload(false); fetchTracks()
     }
     setUploading(false)
   }
 
-  const handleLogout = async () => await supabase.auth.signOut()
+  // --- PLAYER LOGIC ---
+  const playTrack = (index) => {
+    setCurrentTrackIndex(index)
+    setIsPlaying(true)
+    setTimeout(() => { if (audioRef.current) audioRef.current.play() }, 100)
+  }
+
+  const togglePlayPause = () => {
+    if (!audioRef.current) return
+    if (isPlaying) audioRef.current.pause()
+    else audioRef.current.play()
+    setIsPlaying(!isPlaying)
+  }
+
+  const handleNext = () => {
+    if (tracks.length === 0) return
+    let nextIndex = currentTrackIndex + 1
+    if (isShuffle) {
+      nextIndex = Math.floor(Math.random() * tracks.length)
+    } else if (nextIndex >= tracks.length) {
+      nextIndex = 0 // loop back to start
+    }
+    playTrack(nextIndex)
+  }
+
+  const handlePrev = () => {
+    if (tracks.length === 0) return
+    let prevIndex = currentTrackIndex - 1
+    if (prevIndex < 0) prevIndex = tracks.length - 1
+    playTrack(prevIndex)
+  }
+
+  const onTimeUpdate = () => {
+    if (audioRef.current) {
+      const current = audioRef.current.currentTime
+      const duration = audioRef.current.duration
+      setProgress((current / duration) * 100)
+    }
+  }
+
+  const onEnded = () => {
+    if (isRepeat) {
+      audioRef.current.play()
+    } else {
+      handleNext()
+    }
+  }
+
+  const currentTrack = currentTrackIndex !== null ? tracks[currentTrackIndex] : null
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#121212] via-[#0a0a0a] to-black p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
-        
-        {/* Modern Header */}
-        <div className="flex justify-between items-center mb-10 pb-4 border-b border-white/10">
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600 tracking-tight">
-            JamList
-          </h1>
-          <button onClick={handleLogout} className="px-5 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition backdrop-blur-md">
-            Logout
+    // Background Image/Gradient (Palitan mo 'yung bg-[url(...)] sa gusto mong background image para mas astig)
+    <div className="min-h-screen bg-cover bg-center bg-fixed text-white pb-32" 
+         style={{ backgroundImage: "url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')" }}>
+      
+      {/* Dark Overlay para lumitaw ang glassmorphism */}
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-3xl -z-10"></div>
+
+      <div className="p-5 max-w-md mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8 pt-4">
+          <h1 className="text-3xl font-extrabold tracking-tight">Jam<span className="text-green-400">List</span></h1>
+          <button onClick={() => setShowUpload(!showUpload)} className="p-3 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition">
+            <UploadCloud size={20} />
           </button>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {/* Upload Section (Left Col on Desktop, Top on Mobile) */}
-          <div className="md:col-span-1 h-fit bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-lg shadow-xl">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-              Upload Track
-            </h2>
-            <form onSubmit={handleUpload} className="flex flex-col gap-4">
+        {/* Floating Upload Form (Glassmorphism) */}
+        {showUpload && (
+          <div className="mb-6 p-5 bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl animate-in fade-in slide-in-from-top-4">
+            <h2 className="text-lg font-bold mb-4">Add New Track</h2>
+            <form onSubmit={handleUpload} className="flex flex-col gap-3">
               <input type="text" placeholder="Song Title" required value={title} onChange={(e) => setTitle(e.target.value)}
-                className="p-3 bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:border-green-500 transition text-sm" />
-              <input type="text" placeholder="Artist Name" required value={artist} onChange={(e) => setArtist(e.target.value)}
-                className="p-3 bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:border-green-500 transition text-sm" />
-              
-              <div className="relative border-2 border-dashed border-white/20 rounded-xl p-4 text-center hover:border-green-400/50 transition bg-black/20">
-                <input type="file" accept="audio/*" required onChange={(e) => setFile(e.target.files[0])}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <p className="text-sm text-gray-400 font-medium">
-                  {file ? file.name : "Tap to select .mp3 file"}
-                </p>
-              </div>
-
+                className="p-3 bg-black/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 text-sm border border-white/10" />
+              <input type="text" placeholder="Artist" required value={artist} onChange={(e) => setArtist(e.target.value)}
+                className="p-3 bg-black/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 text-sm border border-white/10" />
+              <input type="file" accept="audio/*" required onChange={(e) => setFile(e.target.files[0])}
+                className="p-2 text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/20 file:text-white" />
               <button type="submit" disabled={uploading}
-                className="mt-2 py-3 w-full bg-green-500 text-black font-bold rounded-xl hover:bg-green-400 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(34,197,94,0.3)]">
-                {uploading ? 'Uploading to vault...' : 'Save to JamList'}
+                className="mt-2 py-3 bg-green-500 text-black font-bold rounded-xl hover:bg-green-400 transition shadow-[0_0_15px_rgba(34,197,94,0.4)]">
+                {uploading ? 'Uploading...' : 'Save to Vault'}
               </button>
             </form>
           </div>
+        )}
 
-          {/* Playlist Section (Right Col on Desktop, Bottom on Mobile) */}
-          <div className="md:col-span-2">
-            <h2 className="text-2xl font-bold mb-6">Your Vault</h2>
-            <div className="flex flex-col gap-3">
-              {tracks.length === 0 ? (
-                <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10 border-dashed">
-                  <p className="text-gray-400">Your vault is empty. Upload some tracks!</p>
+        {/* Track List */}
+        <div className="flex flex-col gap-3">
+          {tracks.map((track, index) => {
+            const isPlayingThis = currentTrackIndex === index
+            return (
+              <div key={track.id} 
+                   onClick={() => playTrack(index)}
+                   className={`p-4 rounded-2xl flex items-center gap-4 cursor-pointer transition-all duration-300 border backdrop-blur-md
+                    ${isPlayingThis ? 'bg-white/20 border-green-400/50 shadow-lg scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                
+                {/* Visualizer/Icon Container */}
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 
+                  ${isPlayingThis ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-black/40 text-gray-400'}`}>
+                  {isPlayingThis && isPlaying ? <div className="flex gap-1 items-end h-4">
+                    <div className="w-1 bg-black h-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-1 bg-black h-2/3 animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-1 bg-black h-1/2 animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div> : <Play size={20} className="ml-1" />}
                 </div>
-              ) : (
-                tracks.map((track) => (
-                  <div key={track.id} className="group bg-white/5 hover:bg-white/10 p-4 rounded-xl border border-white/5 hover:border-white/10 transition backdrop-blur-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 truncate">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-gray-800 to-black flex items-center justify-center shrink-0 shadow-inner">
-                        <svg className="w-6 h-6 text-green-400 opacity-80" fill="currentColor" viewBox="0 0 20 20"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"></path></svg>
-                      </div>
-                      <div className="truncate">
-                        <h3 className="font-bold text-white text-lg truncate">{track.title}</h3>
-                        <p className="text-sm text-gray-400 truncate">{track.artist}</p>
-                      </div>
-                    </div>
-                    {/* Native Audio Player with custom dark styling filters */}
-                    <audio controls className="w-full md:w-64 h-10 outline-none grayscale invert-[0.8] contrast-[1.2] opacity-80 group-hover:opacity-100 transition">
-                      <source src={track.file_url} type="audio/mpeg" />
-                    </audio>
-                  </div>
-                ))
-              )}
+
+                <div className="overflow-hidden">
+                  <h3 className={`font-bold truncate ${isPlayingThis ? 'text-green-400' : 'text-white'}`}>{track.title}</h3>
+                  <p className="text-xs text-gray-400 truncate">{track.artist}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* FIXED FLOATING PLAYER (Spotify Style) */}
+      {currentTrack && (
+        <div className="fixed bottom-4 left-4 right-4 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-4 shadow-2xl z-50 animate-in slide-in-from-bottom-10">
+          
+          {/* Progress Bar */}
+          <div className="w-full h-1 bg-gray-600 rounded-full mb-4 overflow-hidden">
+            <div className="h-full bg-green-400 transition-all duration-300" style={{ width: `${progress}%` }}></div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            {/* Track Info */}
+            <div className="w-1/3 truncate">
+              <h4 className="font-bold text-sm text-white truncate">{currentTrack.title}</h4>
+              <p className="text-xs text-gray-400 truncate">{currentTrack.artist}</p>
             </div>
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-4">
+              <button onClick={() => setIsShuffle(!isShuffle)} className={`${isShuffle ? 'text-green-400' : 'text-gray-400'}`}><Shuffle size={18} /></button>
+              <button onClick={handlePrev} className="text-white hover:text-green-400"><SkipBack size={24} /></button>
+              
+              <button onClick={togglePlayPause} className="w-12 h-12 flex items-center justify-center bg-white text-black rounded-full shadow-lg hover:scale-105 transition-transform">
+                {isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+              </button>
+
+              <button onClick={handleNext} className="text-white hover:text-green-400"><SkipForward size={24} /></button>
+              <button onClick={() => setIsRepeat(!isRepeat)} className={`${isRepeat ? 'text-green-400' : 'text-gray-400'}`}><Repeat size={18} /></button>
+            </div>
+
+            {/* Hidden Audio Element */}
+            <audio 
+              ref={audioRef} 
+              src={currentTrack.file_url} 
+              onTimeUpdate={onTimeUpdate}
+              onEnded={onEnded}
+              className="hidden" 
+            />
           </div>
         </div>
-
-      </div>
+      )}
     </div>
   )
 }

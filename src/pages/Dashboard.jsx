@@ -38,37 +38,47 @@ export default function Dashboard() {
     if (data) setSavedTracks(data)
   }
 
-  // 🔴 THE HYBRID HACK: YouTube Search + MP3 Converter API
+  // 🔴 THE HYBRID HACK: Piped API (Search) + siputzx API (YT to MP4 JSON Parsing)
   const fetchYouTubeMusic = async (query = 'Hev Abi') => {
     setLoading(true)
     try {
-      // 1. Search the YouTube database (using a reliable proxy to bypass API keys)
+      // 1. Search using Piped API
       const searchUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query + ' official audio')}`
       const response = await fetch(searchUrl)
       const json = await response.json()
       
       if (json.items && json.items.length > 0) {
-        const ytTracks = json.items
-          .filter(item => item.type === 'stream') 
-          .slice(0, 30) 
-          .map(track => {
-            const videoId = track.url.replace('/watch?v=', '')
-            
-            // 2. The Converter Hack: Dumadaan tayo sa public free API para i-convert ang YT to MP3/M4A
-            // Ito ang magpapatugtog ng full song at magbibigay ng download capability!
-            const directAudioUrl = `https://api.siputzx.my.id/api/d/ytmp4?url=https://www.youtube.com/watch?v=${videoId}`
-            
-            return {
-              id: videoId,
-              title: track.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
-              artist: track.uploaderName || 'YouTube Artist',
-              file_url: directAudioUrl,     // 100% Full Audio Stream
-              download_url: directAudioUrl, // 100% Downloadable
-              cover_image: track.thumbnail
-            }
-          })
+        // Kumuha lang tayo ng Top 10 para mabilis mag-parse at hindi ma-block ng converter API
+        const rawTracks = json.items.filter(item => item.type === 'stream').slice(0, 10)
         
-        setTracks(ytTracks)
+        // 2. I-parse natin isa-isa para makuha yung actual Direct Link mula sa JSON
+        const parsedTracks = await Promise.all(rawTracks.map(async (track) => {
+          const videoId = track.url.replace('/watch?v=', '')
+          let directAudioUrl = ''
+          
+          try {
+            const apiRes = await fetch(`https://api.siputzx.my.id/api/d/ytmp4?url=https://www.youtube.com/watch?v=${videoId}`)
+            const apiJson = await apiRes.json()
+            
+            // Dito natin kinukuha yung raw link sa loob ng JSON object
+            directAudioUrl = apiJson?.data?.dl || apiJson?.data?.url || apiJson?.url || ''
+          } catch (err) {
+            console.error("Failed to extract raw link for:", videoId)
+          }
+          
+          return {
+            id: videoId,
+            title: track.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
+            artist: track.uploaderName || 'YouTube Artist',
+            file_url: directAudioUrl,     // Boom! Ito na yung raw MP4 file
+            download_url: directAudioUrl, // Ito na yung mada-download
+            cover_image: track.thumbnail
+          }
+        }))
+        
+        // I-display lang natin yung mga tracks na matagumpay na nakuha yung raw link
+        const validTracks = parsedTracks.filter(t => t.file_url !== '')
+        setTracks(validTracks)
       } else {
         setTracks([])
       }
@@ -164,7 +174,7 @@ export default function Dashboard() {
         <section>
           <div className="flex justify-between items-center mb-6 px-1">
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 italic">
-              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Trending on YouTube')}
+              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Trending Hits')}
             </h2>
             <span className="text-[10px] font-black text-gray-700 tracking-widest uppercase">{displayedItems.length} TRACKS</span>
           </div>
@@ -173,13 +183,13 @@ export default function Dashboard() {
             {loading && filter === 'All' ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-4"></div>
-                <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">Extracting Audio...</p>
+                <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">Extracting Direct Audio Links...</p>
               </div>
             ) : displayedItems.length === 0 ? (
               <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">
                 <Disc3 size={32} className="mx-auto text-gray-900 mb-4" />
                 <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">
-                  {filter === 'Favorites' ? "You haven't saved any tracks yet." : "No streams found."}
+                  {filter === 'Favorites' ? "You haven't saved any tracks yet." : "No streams found. Try another search."}
                 </p>
               </div>
             ) : (

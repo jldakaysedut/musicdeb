@@ -21,7 +21,7 @@ export default function Dashboard() {
   const { currentTrack, isPlaying, playTrack, togglePlay } = useAudio()
 
   useEffect(() => { 
-    fetchAppleMusic('Hev Abi') 
+    fetchUndergroundMusic('Hev Abi') 
     fetchSavedTracks() 
   }, [])
 
@@ -38,30 +38,39 @@ export default function Dashboard() {
     if (data) setSavedTracks(data)
   }
 
-  // 🌐 THE BULLETPROOF ENGINE: Fetching from Apple iTunes API
-  const fetchAppleMusic = async (query = 'Hev Abi') => {
+  // 🏴‍☠️ THE PROXY HACK: Piped API for Search + Invidious for Full Audio Stream
+  const fetchUndergroundMusic = async (query = 'Hev Abi') => {
     setLoading(true)
     try {
-      const endpoint = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=30`
-      const response = await fetch(endpoint)
+      const searchUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query + ' audio')}`
+      const response = await fetch(searchUrl)
       const json = await response.json()
       
-      if (json.results && json.results.length > 0) {
-        const appleTracks = json.results.map(track => ({
-          id: track.trackId.toString(),
-          title: track.trackName,
-          artist: track.artistName,
-          file_url: track.previewUrl,
-          download_url: track.previewUrl,
-          cover_image: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb', '500x500bb') : '/api/placeholder/56/56'
-        }))
+      if (json.items && json.items.length > 0) {
+        const proxyTracks = json.items
+          .filter(item => item.type === 'stream') 
+          .slice(0, 30) 
+          .map(track => {
+            const videoId = track.url.replace('/watch?v=', '')
+            // The golden ticket: Direct audio stream from Invidious server
+            const audioStreamUrl = `https://invidious.flokinet.to/latest_version?id=${videoId}&itag=140`
+            
+            return {
+              id: videoId,
+              title: track.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
+              artist: track.uploaderName || 'Unknown Artist',
+              file_url: audioStreamUrl,
+              download_url: audioStreamUrl,
+              cover_image: track.thumbnail
+            }
+          })
         
-        setTracks(appleTracks)
+        setTracks(proxyTracks)
       } else {
         setTracks([])
       }
     } catch (error) {
-      console.error("Apple API Fetch Error:", error)
+      console.error("Proxy API Fetch Error:", error)
       setTracks([])
     }
     setLoading(false)
@@ -71,7 +80,7 @@ export default function Dashboard() {
     e.preventDefault()
     if (searchQuery.trim()) {
       setFilter('All')
-      fetchAppleMusic(searchQuery)
+      fetchUndergroundMusic(searchQuery)
     }
   }
 
@@ -132,7 +141,7 @@ export default function Dashboard() {
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-orange-500 transition-colors" />
           <input
             type="text"
-            placeholder="Search the Apple Network (OPM, Anime, Pop)..."
+            placeholder="Search the underground network..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-white/[0.02] rounded-2xl border border-white/5 focus:border-orange-500 outline-none text-sm font-bold text-white transition-all"
@@ -152,7 +161,7 @@ export default function Dashboard() {
         <section>
           <div className="flex justify-between items-center mb-6 px-1">
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 italic">
-              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Top Hits')}
+              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Top Streams')}
             </h2>
             <span className="text-[10px] font-black text-gray-700 tracking-widest uppercase">{displayedItems.length} TRACKS</span>
           </div>
@@ -161,13 +170,13 @@ export default function Dashboard() {
             {loading && filter === 'All' ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-4"></div>
-                <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">Searching Global Network...</p>
+                <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">Bypassing Mainframes...</p>
               </div>
             ) : displayedItems.length === 0 ? (
               <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">
                 <Disc3 size={32} className="mx-auto text-gray-900 mb-4" />
                 <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">
-                  {filter === 'Favorites' ? "You haven't saved any tracks yet." : "No tracks found."}
+                  {filter === 'Favorites' ? "You haven't saved any tracks yet." : "No streams found."}
                 </p>
               </div>
             ) : (
@@ -180,7 +189,7 @@ export default function Dashboard() {
                     className={`p-3 rounded-2xl flex items-center justify-between border transition-all cursor-pointer group 
                     ${isPlayingThis ? 'bg-orange-500/10 border-orange-500/20 shadow-xl' : 'bg-[#0A0A0A] border-white/5 hover:border-white/10'}`}>
                     
-                    <div className="flex items-center gap-4 overflow-hidden">
+                    <div className="flex items-center gap-4 overflow-hidden w-2/3">
                       <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-[#111]">
                         <img src={item.cover_image || '/api/placeholder/56/56'} alt="cover" className="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity" />
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -188,9 +197,9 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <div className="truncate">
+                      <div className="truncate w-full">
                         <h4 className={`text-sm font-black truncate uppercase italic ${isPlayingThis ? 'text-orange-500' : 'text-white'}`}>{item.title}</h4>
-                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1 truncate">
                           {item.artist}
                         </p>
                       </div>

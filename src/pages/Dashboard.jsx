@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
-import { Link } from 'react-router-dom'
-import { Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, LogOut, Trash2, Heart, MoreVertical, Plus, X, Radio, Disc3, Music, User } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, LogOut, Trash2, Heart, MoreVertical, Plus, X, Radio, Disc3, Music, User, Trophy } from 'lucide-react'
 
 export default function Dashboard() {
   const [tracks, setTracks] = useState([])
@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [isShuffle, setIsShuffle] = useState(false)
   const [isRepeat, setIsRepeat] = useState(false)
 
+  const navigate = useNavigate()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
@@ -148,7 +149,10 @@ export default function Dashboard() {
   }
 
   const onEnded = () => isRepeat ? audioRef.current.play() : handleNext()
-  const handleLogout = async () => await supabase.auth.signOut()
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
 
   const currentTrackArray = activeList === 'tracks' ? tracks : radios
   const currentTrack = currentTrackIndex !== null ? currentTrackArray[currentTrackIndex] : null
@@ -165,6 +169,7 @@ export default function Dashboard() {
 
       <div className="max-w-md md:max-w-4xl mx-auto p-6">
         
+        {/* HEADER */}
         <div className="flex justify-between items-center mb-10 pt-4 animate-in fade-in slide-in-from-top-4 duration-700">
           <div>
             <p className="text-gray-400 text-sm font-medium tracking-wider uppercase mb-1">{greeting}</p>
@@ -173,16 +178,26 @@ export default function Dashboard() {
               JamList
             </h1>
           </div>
+          
           <div className="flex items-center gap-3">
+            {/* PROFILE BUTTON */}
             <Link to="/profile" className="w-12 h-12 bg-[#121212] rounded-full border border-[#222] flex items-center justify-center hover:border-green-500/50 hover:text-green-500 transition-colors shadow-lg">
               <User size={20} />
             </Link>
+            
+            {/* LEADERBOARD BUTTON */}
+            <Link to="/leaderboard" className="w-12 h-12 bg-[#121212] rounded-full border border-[#222] flex items-center justify-center hover:border-yellow-500/50 hover:text-yellow-500 transition-colors shadow-lg">
+              <Trophy size={20} />
+            </Link>
+
+            {/* LOGOUT BUTTON */}
             <button onClick={handleLogout} className="w-12 h-12 bg-[#121212] rounded-full border border-[#222] flex items-center justify-center hover:border-red-500/50 hover:text-red-400 transition-colors shadow-lg">
               <LogOut size={20} />
             </button>
           </div>
         </div>
 
+        {/* EXPLORE SECTION */}
         {filter === 'All' && tracks.length > 0 && (
           <div className="mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -214,6 +229,7 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* CATEGORY PILLS */}
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-4">Your Playlists</h2>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
@@ -223,6 +239,7 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* TRACK LIST SECTION */}
         <div className="flex flex-col gap-3 pb-10 animate-in fade-in duration-1000">
           <div className="flex justify-between items-center mb-2 px-2">
             <span className="text-gray-400 text-sm font-medium">{filter === 'Radio' ? 'Trending Stations' : 'Public Feed'}</span>
@@ -304,10 +321,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* FLOATING ACTION BUTTON */}
       <button onClick={() => setShowUpload(true)} className="fixed bottom-[140px] md:bottom-32 right-6 w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-[0_10px_30px_rgba(34,197,94,0.4)] hover:scale-105 hover:bg-green-400 transition-all z-40 text-black">
         <Plus size={28} strokeWidth={3} />
       </button>
 
+      {/* UPLOAD MODAL */}
       {showUpload && (
         <div className="fixed inset-0 bg-[#090909]/90 backdrop-blur-md z-50 flex items-center justify-center p-5 animate-in fade-in duration-300">
           <div className="bg-[#121212] border border-[#222] w-full max-w-sm p-8 rounded-[2rem] shadow-2xl relative">
@@ -329,6 +348,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* PREMIUM BOTTOM PLAYER */}
       {currentTrack && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-2xl bg-[#121212]/95 backdrop-blur-3xl border border-[#222] rounded-[2rem] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 animate-in slide-in-from-bottom-10">
           <div className="w-full h-1.5 bg-[#222] rounded-full mb-4 overflow-hidden">

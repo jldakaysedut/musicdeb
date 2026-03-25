@@ -1,36 +1,35 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Send, MessageSquare, User } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Send, MessageSquare, User } from 'lucide-react'
+import NavLayout from '../components/NavLayout'
+
+function LoadingScreen({ text }) {
+  return (
+    <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+      <div className="spin" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '3px solid var(--black-5)', borderTopColor: 'var(--orange)' }} />
+      <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white-30)' }}>{text}</p>
+    </div>
+  )
+}
 
 export default function Chat() {
-  const [messages, setMessages] = useState([])
-  const [newMessage, setNewMessage] = useState('')
+  const [messages, setMessages]       = useState([])
+  const [newMessage, setNewMessage]   = useState('')
   const [currentUser, setCurrentUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const messagesEndRef = useRef(null)
+  const [loading, setLoading]         = useState(true)
+  const messagesEndRef                = useRef(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     checkUserAndFetch()
-
-    // THE REAL-TIME MAGIC: Nakikinig sa mga bagong chat!
-    const channel = supabase
-      .channel('public:messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-        fetchMessages() // Pag may pumasok na bagong chat, i-refresh ang listahan
-      })
+    const channel = supabase.channel('public:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => fetchMessages())
       .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => supabase.removeChannel(channel)
   }, [])
 
-  // Auto-scroll pababa kapag may bagong message
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const checkUserAndFetch = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -41,117 +40,98 @@ export default function Chat() {
   }
 
   const fetchMessages = async () => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*, profiles(username, avatar_url)')
-      .order('created_at', { ascending: true }) // Oldest to newest para parang Messenger
-    
+    const { data } = await supabase.from('messages').select('*, profiles(username, avatar_url)').order('created_at', { ascending: true })
     if (data) setMessages(data)
   }
 
   const sendMessage = async (e) => {
     e.preventDefault()
     if (!newMessage.trim()) return
-
-    const { error } = await supabase.from('messages').insert([
-      { content: newMessage, user_id: currentUser.id }
-    ])
-
-    if (!error) {
-      setNewMessage('') // I-clear ang textbox pagka-send
-    } else {
-      console.error("Error sending message:", error)
-    }
+    await supabase.from('messages').insert([{ content: newMessage, user_id: currentUser.id }])
+    setNewMessage('')
   }
 
-  if (loading) return <div className="min-h-screen bg-[#090909] flex items-center justify-center text-green-500 font-bold">Connecting to Lounge...</div>
+  if (loading) return <NavLayout><LoadingScreen text="Connecting to the Lounge..." /></NavLayout>
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#090909] text-white font-sans relative">
-      <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-green-500/10 rounded-full blur-[150px] pointer-events-none"></div>
+    <NavLayout>
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 68px)', maxWidth: '680px', margin: '0 auto' }}>
 
-      {/* HEADER */}
-      <div className="bg-[#121212]/90 backdrop-blur-xl border-b border-[#222] p-4 sticky top-0 z-20">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="p-2 bg-[#1a1a1a] rounded-full hover:bg-[#222] transition-colors">
-              <ArrowLeft size={20} />
-            </Link>
-            <div className="flex items-center gap-2">
-              <MessageSquare size={24} className="text-green-500" />
-              <h1 className="text-xl font-black tracking-tight">Global Lounge</h1>
-            </div>
+        {/* Header */}
+        <div style={{ padding: '20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '13px', background: 'var(--orange-dim)', border: '1px solid rgba(255,107,26,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <MessageSquare size={18} color="var(--orange)" />
           </div>
-          <div className="flex items-center gap-2 text-xs font-bold text-green-500 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.01em', marginBottom: '2px' }}>Global Lounge</h2>
+            <p style={{ fontSize: '12px', color: 'var(--white-30)', fontWeight: 500 }}>Open to all MusicDep members · Say hi!</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--orange)', background: 'var(--orange-dim)', padding: '5px 12px', borderRadius: '99px', border: '1px solid rgba(255,107,26,0.25)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--orange)', display: 'inline-block', animation: 'pulse-orange 2s ease-in-out infinite' }} />
+            Live
           </div>
         </div>
-      </div>
 
-      {/* CHAT AREA */}
-      <div className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full flex flex-col gap-4 pb-24 scrollbar-hide">
-        {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50 my-20">
-            <MessageSquare size={48} className="mb-4" />
-            <p className="font-medium">The lounge is quiet.<br/>Be the first to say hi!</p>
-          </div>
-        ) : (
-          messages.map((msg) => {
+        {/* Messages area */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }} className="scrollbar-hide">
+          {messages.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: 0.45, padding: '60px 0' }}>
+              <MessageSquare size={52} color="var(--white-30)" style={{ marginBottom: '16px', display: 'block', margin: '0 auto 16px' }} />
+              <p style={{ fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>The lounge is quiet.</p>
+              <p style={{ fontSize: '14px', color: 'var(--white-60)', lineHeight: 1.6 }}>Be the first to say hi! The community is waiting. 👋</p>
+            </div>
+          ) : messages.map((msg) => {
             const isMe = msg.user_id === currentUser?.id
-
             return (
-              <div key={msg.id} className={`flex gap-3 w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
-                
-                {/* Avatar ng nag-chat (sa kaliwa lang kung hindi ikaw) */}
+              <div key={msg.id} style={{ display: 'flex', gap: '10px', justifyContent: isMe ? 'flex-end' : 'flex-start', alignItems: 'flex-end' }}>
                 {!isMe && (
-                  <div className="w-8 h-8 rounded-full bg-[#1a1a1a] border border-[#333] shrink-0 overflow-hidden flex items-center justify-center">
-                    {msg.profiles?.avatar_url ? (
-                      <img src={msg.profiles.avatar_url} alt="avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={16} className="text-gray-500" />
-                    )}
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--black-4)', border: '1px solid var(--border)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {msg.profiles?.avatar_url ? <img src={msg.profiles.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={14} color="var(--white-30)" />}
                   </div>
                 )}
-
-                <div className={`flex flex-col max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
-                  {!isMe && <span className="text-xs text-gray-400 font-bold mb-1 ml-1">@{msg.profiles?.username || 'user'}</span>}
-                  
-                  <div className={`px-4 py-3 rounded-2xl ${isMe ? 'bg-green-500 text-black rounded-tr-sm shadow-[0_5px_15px_rgba(34,197,94,0.2)]' : 'bg-[#1a1a1a] text-white border border-[#222] rounded-tl-sm'}`}>
-                    <p className="text-sm font-medium leading-relaxed">{msg.content}</p>
+                <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                  {!isMe && (
+                    <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--white-30)', marginBottom: '4px', paddingLeft: '4px' }}>
+                      @{msg.profiles?.username || 'user'}
+                    </p>
+                  )}
+                  <div style={{
+                    padding: '11px 15px',
+                    borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                    background: isMe ? 'var(--orange)' : 'var(--black-3)',
+                    border: isMe ? 'none' : '1px solid var(--border)',
+                    boxShadow: isMe ? '0 4px 16px rgba(255,107,26,0.25)' : 'none',
+                  }}>
+                    <p style={{ fontSize: '14px', fontWeight: 500, lineHeight: 1.5, color: 'white' }}>{msg.content}</p>
                   </div>
-                  
-                  <span className="text-[10px] text-gray-500 mt-1 mr-1">
+                  <p style={{ fontSize: '10px', color: 'var(--white-30)', marginTop: '4px', padding: '0 4px', fontWeight: 500 }}>
                     {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  </p>
                 </div>
-
               </div>
             )
-          })
-        )}
-        {/* Ito 'yung invisble div na tina-target nung auto-scroll */}
-        <div ref={messagesEndRef} /> 
-      </div>
+          })}
+          <div ref={messagesEndRef} />
+        </div>
 
-      {/* INPUT AREA */}
-      <div className="fixed bottom-0 w-full bg-[#090909]/90 backdrop-blur-xl border-t border-[#222] p-4 z-20">
-        <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex items-center gap-2">
-          <input 
-            type="text" 
-            value={newMessage} 
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message..." 
-            className="flex-1 bg-[#141414] border border-[#222] rounded-full px-5 py-4 focus:outline-none focus:border-green-500 text-white font-medium transition-colors"
-          />
-          <button 
-            type="submit" 
-            disabled={!newMessage.trim()}
-            className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center text-black disabled:opacity-50 disabled:bg-[#222] disabled:text-gray-500 hover:bg-green-400 transition-colors shadow-lg shrink-0">
-            <Send size={20} className="ml-1" />
-          </button>
-        </form>
+        {/* Input bar */}
+        <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)', background: 'var(--black-2)', flexShrink: 0 }}>
+          <form onSubmit={sendMessage} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={newMessage}
+              onChange={e => setNewMessage(e.target.value)}
+              placeholder="Say something to the community..."
+              className="input-field"
+              style={{ flex: 1, borderRadius: '14px' }}
+            />
+            <button type="submit" disabled={!newMessage.trim()} className="btn-orange"
+                    style={{ width: '48px', height: '48px', padding: 0, borderRadius: '14px', flexShrink: 0 }}>
+              <Send size={18} style={{ marginLeft: '2px' }} />
+            </button>
+          </form>
+        </div>
       </div>
-
-    </div>
+    </NavLayout>
   )
 }

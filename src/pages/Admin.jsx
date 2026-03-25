@@ -1,134 +1,150 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShieldAlert, Check, X, Play, Pause, LogOut } from 'lucide-react'
+import { ShieldAlert, Check, X, Play, Pause, LogOut, Music2 } from 'lucide-react'
 
 export default function Admin() {
   const [pendingTracks, setPendingTracks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [playingId, setPlayingId] = useState(null)
+  const [loading, setLoading]             = useState(true)
+  const [playingId, setPlayingId]         = useState(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    checkAdminAndFetch()
-  }, [])
+  useEffect(() => { checkAdminAndFetch() }, [])
 
   const checkAdminAndFetch = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { navigate('/login'); return }
-
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (!profile || profile.role !== 'admin') {
-      alert("Access Denied: You are not an admin!")
-      navigate('/dashboard')
-      return
-    }
-
+    if (!profile || profile.role !== 'admin') { alert('Access denied.'); navigate('/dashboard'); return }
     fetchPendingTracks()
   }
 
   const fetchPendingTracks = async () => {
-    const { data, error } = await supabase
-      .from('tracks')
-      .select('*, profiles(username)') 
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-    
+    const { data } = await supabase.from('tracks').select('*, profiles(username)').eq('status', 'pending').order('created_at', { ascending: false })
     if (data) setPendingTracks(data)
     setLoading(false)
   }
 
   const handleApprove = async (id) => {
-    const { error } = await supabase.from('tracks').update({ status: 'approved' }).eq('id', id)
-    if (!error) fetchPendingTracks() 
+    await supabase.from('tracks').update({ status: 'approved' }).eq('id', id)
+    fetchPendingTracks()
   }
 
   const handleReject = async (id, fileUrl) => {
-    if (!window.confirm("Are you sure you want to reject and delete this track?")) return
-    
+    if (!window.confirm('Reject and permanently delete this track? This cannot be undone.')) return
     const { error } = await supabase.from('tracks').delete().eq('id', id)
-    if (!error) {
-      const fileName = fileUrl.split('/').pop()
-      await supabase.storage.from('music-bucket').remove([fileName])
-      fetchPendingTracks()
-    }
+    if (!error) { await supabase.storage.from('music-bucket').remove([fileUrl.split('/').pop()]); fetchPendingTracks() }
   }
 
-  const togglePlay = (id) => {
-    if (playingId === id) setPlayingId(null)
-    else setPlayingId(id)
-  }
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate('/login') }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    navigate('/login')
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--black)', flexDirection: 'column', gap: '16px', fontFamily: 'var(--font-body)' }}>
+        <div className="spin" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '3px solid var(--black-5)', borderTopColor: 'var(--orange)' }} />
+        <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white-30)' }}>Verifying admin credentials...</p>
+      </div>
+    )
   }
-
-  if (loading) return <div className="min-h-screen bg-[#090909] flex items-center justify-center text-green-500 font-bold">Verifying Admin Credentials...</div>
 
   return (
-    <div className="min-h-screen bg-[#090909] text-white font-sans p-6 relative pb-20">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-red-500/5 rounded-full blur-[150px] pointer-events-none"></div>
+    <div style={{ minHeight: '100vh', background: 'var(--black)', color: 'var(--white)', fontFamily: 'var(--font-body)' }}>
 
-      <div className="max-w-3xl mx-auto pt-10 z-10 relative">
-        
-        {/* BAGONG HEADER AREA PARA SA ADMIN */}
-        <div className="flex justify-between items-center mb-8">
-          <Link to="/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft size={20} /> Go to Music Vault
-          </Link>
-          
-          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-[#121212] rounded-full border border-[#222] hover:border-red-500/50 hover:text-red-400 transition-colors shadow-lg text-sm font-bold text-gray-400">
-            <LogOut size={16} /> Logout
+      {/* Top bar */}
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--black-2)', position: 'sticky', top: 0, zIndex: 30, backdropFilter: 'blur(20px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '11px', background: 'rgba(255,80,80,0.12)', border: '1px solid rgba(255,80,80,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldAlert size={18} color="#FF6060" />
+          </div>
+          <div>
+            <h1 style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.01em' }}>Admin Headquarters</h1>
+            <p style={{ fontSize: '11px', color: 'var(--white-30)', fontWeight: 500 }}>Content moderation · MusicDep</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <Link to="/dashboard" className="btn-ghost" style={{ fontSize: '13px', padding: '9px 18px', borderRadius: '10px', textDecoration: 'none' }}>← Dashboard</Link>
+          <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px', borderRadius: '10px', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.2)', color: '#FF6060', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,80,80,0.2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,80,80,0.1)'}>
+            <LogOut size={15} /> Sign Out
           </button>
         </div>
+      </header>
 
-        <div className="flex items-center gap-4 mb-2">
-          <div className="p-3 bg-red-500/10 rounded-2xl border border-red-500/20">
-            <ShieldAlert size={32} className="text-red-500" />
-          </div>
-          <h1 className="text-4xl font-black tracking-tight">Admin Headquarters.</h1>
+      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 20px' }}>
+
+        {/* Stat cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px', marginBottom: '36px' }}>
+          {[
+            { label: 'Pending Review', val: pendingTracks.length, color: '#FF6B1A', bg: 'rgba(255,107,26,0.08)' },
+            { label: 'Awaiting Decision', val: pendingTracks.length, color: '#FFB400', bg: 'rgba(255,180,0,0.08)' },
+            { label: 'Queue Status', val: pendingTracks.length === 0 ? 'Clear ✓' : 'Active', color: pendingTracks.length === 0 ? '#50C878' : '#FF6B1A', bg: pendingTracks.length === 0 ? 'rgba(80,200,120,0.08)' : 'rgba(255,107,26,0.08)' },
+          ].map((s, i) => (
+            <div key={i} style={{ padding: '22px 20px', borderRadius: '18px', background: s.bg, border: `1px solid ${s.color}33`, textAlign: 'center' }}>
+              <p style={{ fontSize: 'clamp(22px, 4vw, 32px)', fontWeight: 800, color: s.color, marginBottom: '5px', lineHeight: 1 }}>{s.val}</p>
+              <p style={{ fontSize: '11px', color: 'var(--white-30)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</p>
+            </div>
+          ))}
         </div>
-        <p className="text-gray-400 font-medium mb-10">Review and moderate user uploads before they go public.</p>
 
-        <div className="flex items-center justify-between mb-4 px-2">
-          <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">Pending Approvals</span>
-          <span className="text-sm font-bold bg-[#1a1a1a] px-3 py-1 rounded-full border border-[#333]">{pendingTracks.length} Tracks</span>
+        {/* Section header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+          <h2 style={{ fontWeight: 800, fontSize: '20px', letterSpacing: '-0.01em' }}>Pending Approvals</h2>
+          <span style={{ background: 'var(--orange-dim)', color: 'var(--orange)', border: '1px solid rgba(255,107,26,0.25)', borderRadius: '99px', padding: '4px 12px', fontSize: '12px', fontWeight: 700 }}>
+            {pendingTracks.length} in queue
+          </span>
         </div>
 
+        {/* Empty state */}
         {pendingTracks.length === 0 ? (
-          <div className="text-center py-20 bg-[#121212] rounded-[2rem] border border-[#222] border-dashed">
-            <ShieldAlert size={48} className="mx-auto text-[#333] mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">All Clear!</h3>
-            <p className="text-gray-500 font-medium">No pending tracks to review right now.</p>
+          <div style={{ textAlign: 'center', padding: '70px 20px', background: 'var(--black-2)', borderRadius: '24px', border: '2px dashed var(--border)' }}>
+            <div style={{ width: '72px', height: '72px', borderRadius: '22px', background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <Check size={32} color="#50C878" />
+            </div>
+            <p style={{ fontWeight: 800, fontSize: '22px', marginBottom: '10px' }}>All Clear!</p>
+            <p style={{ fontSize: '15px', color: 'var(--white-60)', lineHeight: 1.65 }}>No pending tracks right now. The feed is clean and live.<br />Great moderation work. 🎉</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            {pendingTracks.map((track) => (
-              <div key={track.id} className="p-4 bg-[#121212] rounded-3xl border border-[#222] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg hover:border-[#333] transition-colors">
-                
-                <div className="flex items-center gap-4 w-full md:w-auto overflow-hidden">
-                  <button onClick={() => togglePlay(track.id)} className="w-14 h-14 shrink-0 bg-[#1a1a1a] rounded-2xl flex items-center justify-center hover:bg-green-500/20 hover:text-green-500 transition-colors border border-[#333]">
-                    {playingId === track.id ? <Pause size={24} fill="currentColor" /> : <Play size={24} className="ml-1" fill="currentColor" />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {pendingTracks.map((track, i) => (
+              <div key={track.id} className="card anim-fade-up" style={{ padding: '20px', animationDelay: `${i * 0.06}s` }}>
+                {/* Track info row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+                  <button onClick={() => setPlayingId(playingId === track.id ? null : track.id)}
+                          style={{ width: '54px', height: '54px', borderRadius: '15px', background: 'var(--black-4)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--white-30)', flexShrink: 0, transition: 'all 0.2s', fontFamily: 'var(--font-body)' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.color = 'var(--orange)' }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--white-30)' }}
+                          title={playingId === track.id ? 'Pause preview' : 'Preview track'}>
+                    {playingId === track.id ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" style={{ marginLeft: '2px' }} />}
                   </button>
-                  <div className="overflow-hidden pr-4">
-                    <h3 className="font-bold text-lg text-white truncate">{track.title}</h3>
-                    <p className="text-sm text-gray-400 truncate">{track.artist}</p>
-                    <p className="text-xs text-green-500 font-medium mt-1">Uploaded by: @{track.profiles?.username || 'Unknown User'}</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.01em', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.title}</p>
+                    <p style={{ fontSize: '14px', color: 'var(--white-60)', marginBottom: '5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.artist}</p>
+                    <p style={{ fontSize: '12px', color: 'var(--orange)', fontWeight: 700 }}>Uploaded by @{track.profiles?.username || 'Unknown User'}</p>
                   </div>
+                  <span style={{ fontSize: '11px', fontWeight: 700, background: 'rgba(255,180,0,0.12)', color: '#FFB400', border: '1px solid rgba(255,180,0,0.25)', borderRadius: '99px', padding: '4px 12px', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    Pending
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 border-t border-[#222] md:border-0 pt-4 md:pt-0">
-                  <button onClick={() => handleApprove(track.id)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-black font-bold rounded-xl transition-all border border-green-500/20">
-                    <Check size={18} strokeWidth={3} /> Approve
+                {/* Action row */}
+                <div style={{ display: 'flex', gap: '10px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                  <button onClick={() => handleApprove(track.id)}
+                          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '13px', borderRadius: '13px', background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.25)', color: '#50C878', fontWeight: 700, fontSize: '14px', cursor: 'pointer', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#50C878'; e.currentTarget.style.color = 'var(--black)'; e.currentTarget.style.borderColor = '#50C878' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(80,200,120,0.1)'; e.currentTarget.style.color = '#50C878'; e.currentTarget.style.borderColor = 'rgba(80,200,120,0.25)' }}>
+                    <Check size={17} strokeWidth={2.5} /> Approve & Publish
                   </button>
-                  <button onClick={() => handleReject(track.id, track.file_url)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white font-bold rounded-xl transition-all border border-red-500/20">
-                    <X size={18} strokeWidth={3} /> Reject
+                  <button onClick={() => handleReject(track.id, track.file_url)}
+                          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '13px', borderRadius: '13px', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.25)', color: '#FF6060', fontWeight: 700, fontSize: '14px', cursor: 'pointer', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#FF6060'; e.currentTarget.style.color = 'var(--white)'; e.currentTarget.style.borderColor = '#FF6060' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,80,80,0.1)'; e.currentTarget.style.color = '#FF6060'; e.currentTarget.style.borderColor = 'rgba(255,80,80,0.25)' }}>
+                    <X size={17} strokeWidth={2.5} /> Reject & Delete
                   </button>
                 </div>
 
                 {playingId === track.id && (
-                  <audio src={track.file_url} autoPlay onEnded={() => setPlayingId(null)} className="hidden" />
+                  <audio src={track.file_url} autoPlay onEnded={() => setPlayingId(null)} style={{ display: 'none' }} />
                 )}
               </div>
             ))}

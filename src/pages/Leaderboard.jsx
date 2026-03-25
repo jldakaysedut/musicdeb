@@ -1,132 +1,95 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, Trophy, Medal, User, Disc3 } from 'lucide-react'
+import { User, Trophy, Medal } from 'lucide-react'
+import NavLayout from '../components/NavLayout'
+
+function LoadingScreen({ text }) {
+  return (
+    <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+      <div className="spin" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '3px solid var(--black-5)', borderTopColor: 'var(--orange)' }} />
+      <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white-30)' }}>{text}</p>
+    </div>
+  )
+}
 
 export default function Leaderboard() {
   const [topUsers, setTopUsers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading]   = useState(true)
 
-  useEffect(() => {
-    fetchLeaderboard()
-  }, [])
+  useEffect(() => { fetchLeaderboard() }, [])
 
   const fetchLeaderboard = async () => {
-    // 1. Kunin lahat ng APPROVED tracks kasama yung profile details ng nag-upload
-    const { data, error } = await supabase
-      .from('tracks')
-      .select('user_id, profiles(username, avatar_url)')
-      .eq('status', 'approved')
-
-    if (error) {
-      console.error("Error fetching leaderboard:", error)
-      setLoading(false)
-      return
-    }
-
-    // 2. I-group at bilangin kung ilan ang kanta ng bawat user (The Logic)
+    const { data, error } = await supabase.from('tracks').select('user_id, profiles(username, avatar_url)').eq('status', 'approved')
+    if (error) { setLoading(false); return }
     const userCounts = {}
     data.forEach(track => {
       const uid = track.user_id
-      if (!userCounts[uid]) {
-        userCounts[uid] = { 
-          count: 0, 
-          username: track.profiles?.username || 'Unknown Audiophile',
-          avatar_url: track.profiles?.avatar_url || null
-        }
-      }
+      if (!userCounts[uid]) userCounts[uid] = { count: 0, username: track.profiles?.username || 'Unknown', avatar_url: track.profiles?.avatar_url || null }
       userCounts[uid].count += 1
     })
-
-    // 3. I-sort mula sa pinakamataas (Highest count) pababa
-    const sortedUsers = Object.values(userCounts).sort((a, b) => b.count - a.count)
-    
-    setTopUsers(sortedUsers)
+    setTopUsers(Object.values(userCounts).sort((a, b) => b.count - a.count))
     setLoading(false)
   }
 
-  if (loading) return <div className="min-h-screen bg-[#090909] flex items-center justify-center text-green-500 font-bold">Tallying scores...</div>
+  if (loading) return <NavLayout><LoadingScreen text="Tallying the scores..." /></NavLayout>
+
+  const rankConfig = [
+    { border: 'rgba(255,107,26,0.4)', bg: 'rgba(255,107,26,0.07)', color: '#FF6B1A', Icon: Trophy },
+    { border: 'rgba(192,192,192,0.3)', bg: 'rgba(192,192,192,0.04)', color: '#C0C0C0', Icon: Medal },
+    { border: 'rgba(180,120,60,0.3)', bg: 'rgba(180,120,60,0.04)', color: '#B87840', Icon: Medal },
+  ]
 
   return (
-    <div className="min-h-screen bg-[#090909] text-white font-sans p-6 relative pb-20">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-yellow-500/5 rounded-full blur-[150px] pointer-events-none"></div>
-
-      <div className="max-w-2xl mx-auto pt-10 z-10 relative">
-        <Link to="/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-yellow-500 transition-colors mb-8">
-          <ArrowLeft size={20} /> Back to Vault
-        </Link>
-
-        <div className="flex items-center gap-4 mb-2">
-          <div className="p-3 bg-yellow-500/10 rounded-2xl border border-yellow-500/20">
-            <Trophy size={32} className="text-yellow-500" />
-          </div>
-          <h1 className="text-4xl font-black tracking-tight">Top Contributors.</h1>
+    <NavLayout>
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '28px 20px' }}>
+        <div className="anim-fade-up" style={{ marginBottom: '32px' }}>
+          <h1 style={{ fontSize: '30px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '6px' }}>Top Contributors</h1>
+          <p style={{ fontSize: '14px', color: 'var(--white-60)' }}>
+            The ultimate ranking of MusicDep's best curators. Upload quality tracks to climb the chart.
+          </p>
         </div>
-        <p className="text-gray-400 font-medium mb-10">The ultimate ranking of JamList's best curators.</p>
 
         {topUsers.length === 0 ? (
-          <div className="text-center py-20 bg-[#121212] rounded-[2rem] border border-[#222] border-dashed">
-            <Disc3 size={48} className="mx-auto text-[#333] mb-4 animate-spin-slow" />
-            <h3 className="text-xl font-bold text-white mb-2">No data yet</h3>
-            <p className="text-gray-500 font-medium">Be the first to get your tracks approved!</p>
+          <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--black-2)', borderRadius: '20px', border: '2px dashed var(--border)' }}>
+            <Trophy size={48} color="var(--white-30)" style={{ margin: '0 auto 16px', display: 'block' }} />
+            <p style={{ fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>No rankings yet.</p>
+            <p style={{ fontSize: '14px', color: 'var(--white-60)' }}>Be the first to get your tracks approved and claim the #1 spot!</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {topUsers.map((user, index) => {
-              // Custom styling para sa Top 1, 2, at 3
-              const isRank1 = index === 0
-              const isRank2 = index === 1
-              const isRank3 = index === 2
-
-              let borderClass = "border-[#222] bg-[#121212]"
-              let textClass = "text-white"
-              let RankIcon = () => <span className="text-xl font-black text-gray-500 w-8 text-center">#{index + 1}</span>
-
-              if (isRank1) {
-                borderClass = "border-yellow-500/50 bg-yellow-500/5 shadow-[0_0_30px_rgba(234,179,8,0.15)]"
-                textClass = "text-yellow-500"
-                RankIcon = () => <Trophy size={28} className="text-yellow-500 w-8" />
-              } else if (isRank2) {
-                borderClass = "border-gray-400/50 bg-gray-400/5"
-                textClass = "text-gray-300"
-                RankIcon = () => <Medal size={28} className="text-gray-400 w-8" />
-              } else if (isRank3) {
-                borderClass = "border-amber-700/50 bg-amber-700/5"
-                textClass = "text-amber-600"
-                RankIcon = () => <Medal size={28} className="text-amber-700 w-8" />
-              }
-
+              const cfg = rankConfig[index] || { border: 'var(--border)', bg: 'transparent', color: 'var(--white-60)', Icon: null }
               return (
-                <div key={index} className={`p-4 rounded-3xl border flex items-center justify-between gap-4 transition-transform hover:scale-[1.02] ${borderClass}`}>
-                  
-                  <div className="flex items-center gap-4">
-                    <RankIcon />
-                    
-                    <div className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-[#333] overflow-hidden flex items-center justify-center shrink-0">
-                      {user.avatar_url ? (
-                        <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={24} className="text-gray-500" />
+                <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderRadius: '18px', background: cfg.bg, border: `1px solid ${cfg.border}`, transition: 'transform 0.2s ease', animationDelay: `${index * 0.05}s` }}
+                     className="anim-fade-up"
+                     onMouseEnter={e => e.currentTarget.style.transform = 'translateX(5px)'}
+                     onMouseLeave={e => e.currentTarget.style.transform = ''}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ width: '36px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+                      {cfg.Icon ? <cfg.Icon size={24} color={cfg.color} /> : (
+                        <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--white-30)' }}>#{index + 1}</span>
                       )}
                     </div>
-                    
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--black-4)', border: `2px solid ${cfg.border}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {user.avatar_url ? <img src={user.avatar_url} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={20} color="var(--white-30)" />}
+                    </div>
                     <div>
-                      <h3 className={`font-black text-xl tracking-tight ${textClass}`}>@{user.username}</h3>
-                      <p className="text-sm text-gray-400 font-medium">Contributor</p>
+                      <p style={{ fontWeight: 800, fontSize: '16px', color: cfg.color, marginBottom: '3px' }}>@{user.username}</p>
+                      <p style={{ fontSize: '12px', color: 'var(--white-30)', fontWeight: 500 }}>
+                        Contributor · {user.count} approved {user.count === 1 ? 'track' : 'tracks'}
+                      </p>
                     </div>
                   </div>
-
-                  <div className="flex flex-col items-end pr-2">
-                    <span className={`text-3xl font-black ${textClass}`}>{user.count}</span>
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tracks</span>
+                  <div style={{ textAlign: 'right', paddingRight: '4px' }}>
+                    <p style={{ fontSize: '28px', fontWeight: 800, color: cfg.color, lineHeight: 1, letterSpacing: '-0.02em' }}>{user.count}</p>
+                    <p style={{ fontSize: '10px', color: 'var(--white-30)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>Tracks</p>
                   </div>
-
                 </div>
               )
             })}
           </div>
         )}
       </div>
-    </div>
+    </NavLayout>
   )
 }

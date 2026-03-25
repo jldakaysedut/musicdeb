@@ -1,7 +1,31 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, UserPlus, Disc3, ArrowLeft } from 'lucide-react'
+import { Mail, Lock, ArrowRight, Music2, ArrowLeft, CheckCircle2 } from 'lucide-react'
+
+function FloatingInput({ id, type, label, hint, icon: Icon, value, onChange }) {
+  const [focused, setFocused] = useState(false)
+  const active = focused || value.length > 0
+  return (
+    <div style={{ position: 'relative', marginBottom: '4px' }}>
+      <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 2, transition: 'color 0.2s', color: active ? 'var(--orange)' : 'var(--white-30)', pointerEvents: 'none' }}>
+        <Icon size={17} />
+      </div>
+      <label htmlFor={id} style={{ position: 'absolute', left: '48px', transition: 'all 0.2s cubic-bezier(.16,1,.3,1)', pointerEvents: 'none', fontWeight: 600, zIndex: 2, top: active ? '10px' : '50%', transform: active ? 'translateY(0) scale(0.82)' : 'translateY(-50%)', transformOrigin: 'left top', fontSize: '14px', color: active ? 'var(--orange)' : 'var(--white-30)' }}>{label}</label>
+      <input id={id} type={type} value={value} onChange={onChange} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} required
+        style={{ width: '100%', paddingLeft: '48px', paddingRight: '18px', paddingTop: active ? '26px' : '18px', paddingBottom: active ? '10px' : '18px', background: 'var(--black-3)', border: `1px solid ${focused ? 'var(--orange)' : 'var(--border)'}`, borderRadius: '14px', color: 'var(--white)', fontSize: '15px', fontWeight: 500, fontFamily: 'var(--font-body)', outline: 'none', transition: 'all 0.2s ease', boxShadow: focused ? '0 0 0 3px rgba(255,107,26,0.15)' : 'none' }} />
+      {hint && <p style={{ fontSize: '11px', color: 'var(--white-30)', marginTop: '6px', paddingLeft: '4px', fontWeight: 500 }}>{hint}</p>}
+    </div>
+  )
+}
+
+const perks = [
+  'Upload your tracks to the public vault',
+  'Stream 15+ live PH radio stations',
+  'Real-time global chat lounge',
+  'Compete on the contributor leaderboard',
+  'Favorite & organize your music library',
+]
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -9,90 +33,104 @@ export default function Register() {
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [loading, setLoading] = useState(false)
-  const [focusedInput, setFocusedInput] = useState(null)
   const navigate = useNavigate()
 
   const handleRegister = async (e) => {
     e.preventDefault()
     setErrorMsg(''); setSuccessMsg(''); setLoading(true)
     const { error } = await supabase.auth.signUp({ email, password })
-    if (error) { setErrorMsg(error.message); setLoading(false) } 
+    if (error) { setErrorMsg(error.message); setLoading(false) }
     else {
-      setSuccessMsg('Vault successfully generated! Routing...')
-      setTimeout(() => navigate('/login'), 2000)
+      setSuccessMsg('Account created! Check your email to confirm, then sign in.')
+      setTimeout(() => navigate('/login'), 3000)
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col p-6 bg-[#090909] text-white font-sans relative overflow-hidden">
-      
-      {/* Back Button */}
-      <Link to="/" className="absolute top-8 left-8 p-3 bg-white/5 rounded-full hover:bg-white/10 transition z-20">
-        <ArrowLeft size={20} />
-      </Link>
+    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--black)' }}>
 
-      {/* Ambient Glow */}
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-green-500/10 rounded-full blur-[150px] pointer-events-none"></div>
-
-      <div className="flex-1 flex items-center justify-center z-10 animate-in fade-in duration-700">
-        <div className="w-full max-w-[400px]">
-          
-          <div className="flex justify-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-700 flex items-center justify-center shadow-[0_0_20px_rgba(34,197,94,0.4)]">
-              <UserPlus size={32} className="text-black" />
+      {/* ── LEFT: Perks panel ── */}
+      <div className="lg-panel" style={{ display: 'none', width: '45%', background: 'var(--orange)', padding: '48px', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+        {/* Pattern overlay */}
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)', backgroundSize: '50px 50px', pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '64px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Music2 size={18} color="white" />
             </div>
+            <span style={{ fontWeight: 800, fontSize: '18px', color: 'white' }}>MusicDep</span>
           </div>
-          
-          <div className="mb-10 text-center">
-            <h2 className="text-4xl font-black mb-2 tracking-tight">Start Listening.</h2>
-            <p className="text-gray-400 font-medium">Create your free account today</p>
+          <h2 style={{ fontSize: '40px', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: '12px', color: 'white' }}>
+            Everything you need to share your sound.
+          </h2>
+          <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.75)', marginBottom: '40px', lineHeight: 1.65 }}>
+            Join MusicDep free. Your contribution helps the community grow.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {perks.map((p, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <CheckCircle2 size={20} color="rgba(255,255,255,0.9)" strokeWidth={2.5} />
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>{p}</span>
+              </div>
+            ))}
           </div>
-          
+        </div>
+        <p style={{ position: 'relative', zIndex: 1, fontSize: '12px', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+          100% free. No credit card required.
+        </p>
+      </div>
+
+      {/* ── RIGHT: Form ── */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative' }}>
+        <Link to="/" style={{ position: 'absolute', top: '24px', left: '24px', width: '40px', height: '40px', borderRadius: '12px', background: 'var(--black-3)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', color: 'var(--white-60)', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.color = 'var(--orange)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--white-60)' }}>
+          <ArrowLeft size={18} />
+        </Link>
+
+        <div style={{ width: '100%', maxWidth: '400px' }} className="anim-fade-up">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '36px' }}>
+            <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: 'var(--orange)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Music2 size={16} color="white" />
+            </div>
+            <span style={{ fontWeight: 800, fontSize: '16px' }}>Music<span style={{ color: 'var(--orange)' }}>Dep</span></span>
+          </div>
+
+          <h1 style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '-0.025em', marginBottom: '8px' }}>Create Account</h1>
+          <p style={{ fontSize: '14px', color: 'var(--white-60)', marginBottom: '32px', lineHeight: 1.6 }}>
+            Already a member?{' '}
+            <Link to="/login" style={{ color: 'var(--orange)', fontWeight: 700, textDecoration: 'none' }}>Sign in →</Link>
+          </p>
+
           {errorMsg && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl mb-6 text-sm text-center flex items-center justify-center gap-2 animate-in slide-in-from-top-2">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> {errorMsg}
+            <div className="anim-scale-in" style={{ background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.25)', borderRadius: '12px', padding: '14px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#FF6060', fontWeight: 600 }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#FF6060', flexShrink: 0 }} />{errorMsg}
             </div>
           )}
           {successMsg && (
-            <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-4 rounded-2xl mb-6 text-sm text-center flex items-center justify-center gap-2 animate-in slide-in-from-top-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> {successMsg}
+            <div className="anim-scale-in" style={{ background: 'rgba(80,200,120,0.1)', border: '1px solid rgba(80,200,120,0.25)', borderRadius: '12px', padding: '14px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#50C878', fontWeight: 600 }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#50C878', flexShrink: 0 }} />{successMsg}
             </div>
           )}
 
-          <form onSubmit={handleRegister} className="flex flex-col gap-4">
-            <div className={`relative transition-all duration-300 rounded-2xl border ${focusedInput === 'email' ? 'border-green-500 bg-[#141414] shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-[#222] bg-[#111]'}`}>
-              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <Mail size={20} className={focusedInput === 'email' ? 'text-green-500 transition-colors' : 'text-gray-500'} />
-              </div>
-              <input type="email" placeholder="Email Address" required
-                value={email} onChange={(e) => setEmail(e.target.value)}
-                onFocus={() => setFocusedInput('email')} onBlur={() => setFocusedInput(null)}
-                className="w-full pl-14 pr-5 py-5 bg-transparent text-white focus:outline-none placeholder-gray-600 font-medium" />
-            </div>
-            
-            <div className={`relative transition-all duration-300 rounded-2xl border ${focusedInput === 'password' ? 'border-green-500 bg-[#141414] shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-[#222] bg-[#111]'}`}>
-              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <Lock size={20} className={focusedInput === 'password' ? 'text-green-500 transition-colors' : 'text-gray-500'} />
-              </div>
-              <input type="password" placeholder="Password (Min 6 Characters)" required
-                value={password} onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setFocusedInput('password')} onBlur={() => setFocusedInput(null)}
-                className="w-full pl-14 pr-5 py-5 bg-transparent text-white focus:outline-none placeholder-gray-600 font-medium" />
-            </div>
+          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <FloatingInput id="email" type="email" label="Email address" icon={Mail} value={email} onChange={e => setEmail(e.target.value)} />
+            <FloatingInput id="password" type="password" label="Password" hint="Use at least 6 characters for a strong password." icon={Lock} value={password} onChange={e => setPassword(e.target.value)} />
 
-            <button type="submit" disabled={loading}
-              className="group w-full py-5 mt-4 bg-green-500 text-black font-extrabold text-lg rounded-2xl hover:bg-green-400 transition-all shadow-[0_10px_30px_rgba(34,197,94,0.2)] disabled:opacity-50 flex items-center justify-center gap-3">
-              {loading ? 'Processing...' : (
-                <>Create Vault <Disc3 size={20} className="group-hover:rotate-180 transition-transform duration-500" /></>
-              )}
+            <button type="submit" disabled={loading} className="btn-orange" style={{ width: '100%', marginTop: '8px', fontSize: '15px', padding: '16px' }}>
+              {loading ? (
+                <><span className="spin" style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', display: 'inline-block' }} /> Creating vault...</>
+              ) : <>Create Free Account <ArrowRight size={18} /></>}
             </button>
           </form>
 
-          <p className="mt-8 text-center text-gray-500 font-medium">
-            Already a member? <Link to="/login" className="text-white hover:text-gray-300 transition-colors underline underline-offset-4">Sign in here</Link>
+          <p style={{ marginTop: '24px', fontSize: '12px', color: 'var(--white-30)', textAlign: 'center', lineHeight: 1.7 }}>
+            By creating an account you agree to our<br />Terms of Service and Privacy Policy.
           </p>
         </div>
       </div>
+
+      <style>{`@media (min-width: 1024px) { .lg-panel { display: flex !important; } }`}</style>
     </div>
   )
 }

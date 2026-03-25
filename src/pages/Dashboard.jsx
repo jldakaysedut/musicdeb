@@ -7,20 +7,19 @@ import {
   Disc3, User, Trophy, MessageSquare, Home, RefreshCw
 } from 'lucide-react'
 
-// ✅ Piped instances for SEARCH
+// ✅ 1. FRESH 2026 PROXY SERVERS
 const PIPED_INSTANCES = [
+  'https://pipedapi.smnz.de',
+  'https://pipedapi.adminforge.de',
+  'https://piped-api.lunar.icu',
   'https://pipedapi.kavin.rocks',
-  'https://piped-api.garudalinux.org',
-  'https://api.piped.projectsegfau.lt',
-  'https://pipedapi.in.projectsegfau.lt',
 ]
 
-// ✅ Invidious instances for STREAM extraction (more reliable audio URLs)
 const INVIDIOUS_INSTANCES = [
-  'https://invidious.kavin.rocks',
-  'https://yewtu.be',
-  'https://inv.riverside.rocks',
+  'https://vid.puffyan.us',
+  'https://invidious.fdn.fr',
   'https://invidious.nerdvpn.de',
+  'https://yewtu.be',
 ]
 
 export default function Dashboard() {
@@ -52,61 +51,80 @@ export default function Dashboard() {
     if (data) setSavedTracks(data)
   }
 
-  // ─── STEP 1: Search via Piped (use 'videos' filter — most reliable) ──────────
+  // ─── THE HYDRA SEARCH (Double-Layered Search Strategy) ──────────
   const searchVideos = async (query) => {
+    // LAYER 1: Try Piped API
     for (const instance of PIPED_INSTANCES) {
       try {
-        const res = await fetch(
-          `${instance}/search?q=${encodeURIComponent(query)}&filter=videos`,
-          { signal: AbortSignal.timeout(5000) }
-        )
-        if (!res.ok) continue
-        const json = await res.json()
-        if (json?.items?.length) {
-          return json.items.filter(i => i.type === 'stream').slice(0, 12)
+        const res = await fetch(`${instance}/search?q=${encodeURIComponent(query)}&filter=videos`, { signal: AbortSignal.timeout(8000) })
+        if (res.ok) {
+          const json = await res.json()
+          if (json?.items?.length) return json.items.filter(i => i.type === 'stream').slice(0, 10).map(t => ({
+             id: t.url.replace('/watch?v=', ''),
+             title: t.title,
+             artist: t.uploaderName,
+             cover_image: t.thumbnail
+          }))
         }
-      } catch (_) {}
+      } catch (err) {}
     }
-    return []
-  }
-
-  // ─── STEP 2: Get audio URL via Invidious /api/v1/videos/{id} ─────────────────
-  const getAudioUrl = async (videoId) => {
-    // Try Invidious first — returns adaptiveFormats with direct audio
+    
+    // LAYER 2: If Piped fails, Fallback to Invidious Search
     for (const instance of INVIDIOUS_INSTANCES) {
       try {
-        const res = await fetch(
-          `${instance}/api/v1/videos/${videoId}?fields=adaptiveFormats`,
-          { signal: AbortSignal.timeout(6000) }
-        )
-        if (!res.ok) continue
-        const json = await res.json()
-        const audioFormats = (json?.adaptiveFormats || [])
-          .filter(f => f.type?.startsWith('audio/'))
-          .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
-        if (audioFormats[0]?.url) return audioFormats[0].url
-      } catch (_) {}
+        const res = await fetch(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, { signal: AbortSignal.timeout(8000) })
+        if (res.ok) {
+          const json = await res.json()
+          if (json?.length) return json.slice(0, 10).map(t => ({
+             id: t.videoId,
+             title: t.title,
+             artist: t.author,
+             cover_image: t.videoThumbnails?.[0]?.url || ''
+          }))
+        }
+      } catch (err) {}
+    }
+    return [] // Wala talagang nasagap
+  }
+
+  // ─── THE AUDIO EXTRACTOR (Triple Fallback System) ─────────────────
+  const getAudioUrl = async (videoId) => {
+    // ATTEMPT 1: Invidious Direct Audio Format
+    for (const instance of INVIDIOUS_INSTANCES) {
+      try {
+        const res = await fetch(`${instance}/api/v1/videos/${videoId}?fields=adaptiveFormats`, { signal: AbortSignal.timeout(6000) })
+        if (res.ok) {
+          const json = await res.json()
+          const format = json?.adaptiveFormats?.find(f => f.type?.startsWith('audio/'))
+          if (format?.url) return format.url
+        }
+      } catch (err) {}
     }
 
-    // Fallback: Try Piped /streams/{id}
+    // ATTEMPT 2: Piped Audio Streams
     for (const instance of PIPED_INSTANCES) {
       try {
-        const res = await fetch(
-          `${instance}/streams/${videoId}`,
-          { signal: AbortSignal.timeout(6000) }
-        )
-        if (!res.ok) continue
-        const json = await res.json()
-        const best = (json?.audioStreams || [])
-          .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]
-        if (best?.url) return best.url
-      } catch (_) {}
+        const res = await fetch(`${instance}/streams/${videoId}`, { signal: AbortSignal.timeout(6000) })
+        if (res.ok) {
+          const json = await res.json()
+          const format = json?.audioStreams?.sort((a,b) => b.bitrate - a.bitrate)[0]
+          if (format?.url) return format.url
+        }
+      } catch (err) {}
     }
+
+    // ATTEMPT 3: The "Final Boss" Converter JSON Parsing (from earlier hack)
+    try {
+        const res = await fetch(`https://api.siputzx.my.id/api/d/ytmp4?url=https://www.youtube.com/watch?v=${videoId}`)
+        const json = await res.json()
+        const rawUrl = json?.data?.dl || json?.data?.url || json?.url
+        if (rawUrl) return rawUrl
+    } catch (err) {}
 
     return ''
   }
 
-  // ─── MAIN FETCH ──────────────────────────────────────────────────────────────
+  // ─── MAIN FETCH ENGINE ──────────────────────────────────────────────────
   const fetchMusic = async (query = 'Hev Abi') => {
     setLoading(true)
     setError('')
@@ -116,43 +134,38 @@ export default function Dashboard() {
       const rawTracks = await searchVideos(query)
 
       if (!rawTracks.length) {
-        setError('No results found. Check your connection or try a different search.')
+        setError('Global Network Error. Public servers might be overloaded right now.')
         setLoading(false)
         return
       }
 
-      // Resolve audio URLs — show tracks progressively as they resolve
       const results = []
       await Promise.all(
         rawTracks.map(async (track) => {
-          const videoId = track.url?.replace('/watch?v=', '') || track.videoId
-          if (!videoId) return
+          if (!track.id) return
 
-          const audioUrl = await getAudioUrl(videoId)
+          const audioUrl = await getAudioUrl(track.id)
           if (!audioUrl) return
 
           results.push({
-            id: videoId,
-            title: (track.title || 'Unknown')
-              .replace(/&quot;/g, '"')
-              .replace(/&#39;/g, "'"),
-            artist: track.uploaderName || 'YouTube Artist',
+            id: track.id,
+            title: (track.title || 'Unknown').replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
+            artist: track.artist || 'YouTube Artist',
             file_url: audioUrl,
             download_url: audioUrl,
-            cover_image: track.thumbnail || '',
+            cover_image: track.cover_image,
           })
 
-          // Update UI as each track resolves
           setTracks([...results])
         })
       )
 
       if (results.length === 0) {
-        setError('Found videos but could not extract audio. Try again.')
+        setError('Found the tracks, but security blocked the audio extraction. Try again.')
       }
     } catch (err) {
       console.error('Fetch error:', err)
-      setError('Something went wrong. Please try again.')
+      setError('System malfunction. Try refreshing the app.')
     }
 
     setLoading(false)
@@ -230,7 +243,7 @@ export default function Dashboard() {
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-orange-500 transition-colors" />
           <input
             type="text"
-            placeholder="Search songs, artists..."
+            placeholder="Search the Underground Network..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-12 pr-24 py-4 bg-white/[0.02] rounded-2xl border border-white/5 focus:border-orange-500 outline-none text-sm font-bold text-white transition-all"
@@ -278,7 +291,7 @@ export default function Dashboard() {
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-4" />
                 <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">
-                  Fetching Audio Streams...
+                  Bypassing Mainframes...
                 </p>
               </div>
 
@@ -291,7 +304,7 @@ export default function Dashboard() {
                   onClick={() => fetchMusic(searchQuery || 'Hev Abi')}
                   className="px-6 py-2.5 bg-orange-500 text-black rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mx-auto"
                 >
-                  <RefreshCw size={12} /> Retry
+                  <RefreshCw size={12} /> Retry Connection
                 </button>
               </div>
 
@@ -371,7 +384,7 @@ export default function Dashboard() {
             {loading && tracks.length > 0 && (
               <div className="flex items-center justify-center gap-3 py-4">
                 <div className="w-4 h-4 border-2 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
-                <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">Loading more...</p>
+                <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">Bypassing security...</p>
               </div>
             )}
           </div>

@@ -1,35 +1,34 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
-import { useNavigate } from 'react-router-dom'
-import { Send, MessageSquare, User } from 'lucide-react'
-import NavLayout from '../components/NavLayout'
-
-function LoadingScreen({ text }) {
-  return (
-    <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-      <div className="spin" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '3px solid var(--black-5)', borderTopColor: 'var(--orange)' }} />
-      <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white-30)' }}>{text}</p>
-    </div>
-  )
-}
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Send, MessageSquare, User, Home, Trophy, LayoutGrid } from 'lucide-react'
 
 export default function Chat() {
-  const [messages, setMessages]       = useState([])
-  const [newMessage, setNewMessage]   = useState('')
+  const [messages, setMessages] = useState([])
+  const [newMessage, setNewMessage] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
-  const [loading, setLoading]         = useState(true)
-  const messagesEndRef                = useRef(null)
+  const [loading, setLoading] = useState(true)
+  const messagesEndRef = useRef(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     checkUserAndFetch()
-    const channel = supabase.channel('public:messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => fetchMessages())
+
+    const channel = supabase
+      .channel('public:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+        fetchMessages()
+      })
       .subscribe()
-    return () => supabase.removeChannel(channel)
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const checkUserAndFetch = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -40,98 +39,135 @@ export default function Chat() {
   }
 
   const fetchMessages = async () => {
-    const { data } = await supabase.from('messages').select('*, profiles(username, avatar_url)').order('created_at', { ascending: true })
+    const { data } = await supabase
+      .from('messages')
+      .select('*, profiles(username, avatar_url)')
+      .order('created_at', { ascending: true })
+    
     if (data) setMessages(data)
   }
 
   const sendMessage = async (e) => {
     e.preventDefault()
     if (!newMessage.trim()) return
-    await supabase.from('messages').insert([{ content: newMessage, user_id: currentUser.id }])
-    setNewMessage('')
+
+    const { error } = await supabase.from('messages').insert([
+      { content: newMessage, user_id: currentUser.id }
+    ])
+
+    if (!error) setNewMessage('')
   }
 
-  if (loading) return <NavLayout><LoadingScreen text="Connecting to the Lounge..." /></NavLayout>
+  if (loading) return (
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center">
+      <div className="w-12 h-12 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-4"></div>
+      <p className="text-orange-500 font-black text-xs uppercase tracking-[0.3em]">Connecting to Frequency...</p>
+    </div>
+  )
 
   return (
-    <NavLayout>
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 68px)', maxWidth: '680px', margin: '0 auto' }}>
-
-        {/* Header */}
-        <div style={{ padding: '20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '13px', background: 'var(--orange-dim)', border: '1px solid rgba(255,107,26,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <MessageSquare size={18} color="var(--orange)" />
+    <div className="min-h-screen flex flex-col bg-[#050505] text-white font-sans relative overflow-hidden selection:bg-orange-500 selection:text-black">
+      
+      {/* 1. STICKY GLASS HEADER */}
+      <header className="bg-black/60 backdrop-blur-2xl border-b border-white/5 p-5 sticky top-0 z-30">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/dashboard" className="p-2 bg-white/5 rounded-full hover:bg-orange-500/10 hover:text-orange-500 transition-all">
+              <ArrowLeft size={20} />
+            </Link>
+            <div>
+              <h1 className="text-xl font-black tracking-tighter uppercase italic flex items-center gap-2">
+                <MessageSquare size={20} className="text-orange-500" />
+                Global Lounge
+              </h1>
+              <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Broadcasting Live</p>
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.01em', marginBottom: '2px' }}>Global Lounge</h2>
-            <p style={{ fontSize: '12px', color: 'var(--white-30)', fontWeight: 500 }}>Open to all MusicDep members · Say hi!</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--orange)', background: 'var(--orange-dim)', padding: '5px 12px', borderRadius: '99px', border: '1px solid rgba(255,107,26,0.25)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--orange)', display: 'inline-block', animation: 'pulse-orange 2s ease-in-out infinite' }} />
-            Live
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+            <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Live</span>
           </div>
         </div>
+      </header>
 
-        {/* Messages area */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }} className="scrollbar-hide">
-          {messages.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: 0.45, padding: '60px 0' }}>
-              <MessageSquare size={52} color="var(--white-30)" style={{ marginBottom: '16px', display: 'block', margin: '0 auto 16px' }} />
-              <p style={{ fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>The lounge is quiet.</p>
-              <p style={{ fontSize: '14px', color: 'var(--white-60)', lineHeight: 1.6 }}>Be the first to say hi! The community is waiting. 👋</p>
-            </div>
-          ) : messages.map((msg) => {
+      {/* 2. REAL-TIME MESSAGE FEED */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-3xl mx-auto w-full flex flex-col gap-6 pb-40 scrollbar-hide no-scrollbar">
+        {messages.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 my-20">
+            <MessageSquare size={48} className="mb-4" />
+            <h3 className="text-lg font-black uppercase tracking-tighter">The lounge is quiet...</h3>
+            <p className="text-sm font-bold">Start the conversation below.</p>
+          </div>
+        ) : (
+          messages.map((msg) => {
             const isMe = msg.user_id === currentUser?.id
+
             return (
-              <div key={msg.id} style={{ display: 'flex', gap: '10px', justifyContent: isMe ? 'flex-end' : 'flex-start', alignItems: 'flex-end' }}>
-                {!isMe && (
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--black-4)', border: '1px solid var(--border)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {msg.profiles?.avatar_url ? <img src={msg.profiles.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={14} color="var(--white-30)" />}
-                  </div>
-                )}
-                <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                  {!isMe && (
-                    <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--white-30)', marginBottom: '4px', paddingLeft: '4px' }}>
-                      @{msg.profiles?.username || 'user'}
-                    </p>
+              <div key={msg.id} className={`flex gap-3 w-full animate-in fade-in slide-in-from-bottom-2 duration-500 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                
+                {/* User Avatar */}
+                <div className={`w-9 h-9 rounded-xl border border-white/10 shrink-0 overflow-hidden flex items-center justify-center bg-[#111] ${isMe ? 'border-orange-500/50' : ''}`}>
+                  {msg.profiles?.avatar_url ? (
+                    <img src={msg.profiles.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={18} className="text-gray-600" />
                   )}
-                  <div style={{
-                    padding: '11px 15px',
-                    borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    background: isMe ? 'var(--orange)' : 'var(--black-3)',
-                    border: isMe ? 'none' : '1px solid var(--border)',
-                    boxShadow: isMe ? '0 4px 16px rgba(255,107,26,0.25)' : 'none',
-                  }}>
-                    <p style={{ fontSize: '14px', fontWeight: 500, lineHeight: 1.5, color: 'white' }}>{msg.content}</p>
-                  </div>
-                  <p style={{ fontSize: '10px', color: 'var(--white-30)', marginTop: '4px', padding: '0 4px', fontWeight: 500 }}>
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
                 </div>
+
+                <div className={`flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}`}>
+                  {!isMe && <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1.5 px-1">@{msg.profiles?.username}</span>}
+                  
+                  <div className={`px-5 py-3.5 rounded-2xl shadow-xl leading-relaxed ${isMe ? 'bg-orange-500 text-black font-bold rounded-tr-none' : 'bg-white/5 text-gray-200 border border-white/5 rounded-tl-none'}`}>
+                    <p className="text-sm font-medium">{msg.content}</p>
+                  </div>
+                  
+                  <span className="text-[8px] font-black text-gray-600 uppercase mt-2 tracking-widest">
+                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+
               </div>
             )
-          })}
-          <div ref={messagesEndRef} />
-        </div>
+          })
+        )}
+        <div ref={messagesEndRef} /> 
+      </main>
 
-        {/* Input bar */}
-        <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)', background: 'var(--black-2)', flexShrink: 0 }}>
-          <form onSubmit={sendMessage} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <input
-              type="text"
-              value={newMessage}
-              onChange={e => setNewMessage(e.target.value)}
-              placeholder="Say something to the community..."
-              className="input-field"
-              style={{ flex: 1, borderRadius: '14px' }}
-            />
-            <button type="submit" disabled={!newMessage.trim()} className="btn-orange"
-                    style={{ width: '48px', height: '48px', padding: 0, borderRadius: '14px', flexShrink: 0 }}>
-              <Send size={18} style={{ marginLeft: '2px' }} />
-            </button>
-          </form>
-        </div>
+      {/* 3. INPUT BROADCAST BAR */}
+      <div className="fixed bottom-24 md:bottom-8 w-full z-40 px-4">
+        <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex items-center gap-3 bg-[#0A0A0A]/80 backdrop-blur-3xl border border-white/10 p-2 rounded-[2rem] shadow-2xl">
+          <input 
+            type="text" 
+            value={newMessage} 
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Broadcast your thoughts..." 
+            className="flex-1 bg-transparent px-5 py-3 focus:outline-none text-white font-bold text-sm placeholder-gray-700"
+          />
+          <button 
+            type="submit" 
+            disabled={!newMessage.trim()}
+            className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-black disabled:opacity-20 disabled:grayscale transition-all hover:scale-105 active:scale-90 shadow-lg shadow-orange-500/20 shrink-0"
+          >
+            <Send size={18} strokeWidth={3} className="ml-0.5" />
+          </button>
+        </form>
       </div>
-    </NavLayout>
+
+      {/* 4. MOBILE NAVIGATION (Bottom Nav Consistency) */}
+      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
+        <Link to="/dashboard" className="p-2 text-gray-500"><Home size={22} /></Link>
+        <Link to="/chat" className="p-2 text-orange-500"><MessageSquare size={22} /></Link>
+        <Link to="/leaderboard" className="p-2 text-gray-500"><Trophy size={22} /></Link>
+        <Link to="/profile" className="p-2 text-gray-500"><User size={22} /></Link>
+      </nav>
+
+      {/* 5. FOOTER BRANDING */}
+      <div className="hidden md:block absolute bottom-4 right-8 opacity-20">
+         <p className="text-[8px] font-black uppercase tracking-[0.5em] text-gray-400">
+          Created by <span className="text-white">Dakay</span>
+        </p>
+      </div>
+
+    </div>
   )
 }

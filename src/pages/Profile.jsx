@@ -1,116 +1,189 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { useNavigate } from 'react-router-dom'
-import { User, Camera, Save } from 'lucide-react'
-import NavLayout from '../components/NavLayout'
-
-function LoadingScreen({ text }) {
-  return (
-    <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-      <div className="spin" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '3px solid var(--black-5)', borderTopColor: 'var(--orange)' }} />
-      <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white-30)' }}>{text}</p>
-    </div>
-  )
-}
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, User, Save, Camera, Home, MessageSquare, Trophy, LayoutGrid, Sparkles } from 'lucide-react'
 
 export default function Profile() {
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState(false)
-  const [user, setUser]             = useState(null)
-  const [username, setUsername]     = useState('')
-  const [avatarUrl, setAvatarUrl]   = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [user, setUser] = useState(null)
+  const [username, setUsername] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState('')
   const [avatarFile, setAvatarFile] = useState(null)
-  const [message, setMessage]       = useState(null)
+  const [message, setMessage] = useState('')
   const navigate = useNavigate()
 
-  useEffect(() => { getProfile() }, [])
+  useEffect(() => {
+    getProfile()
+  }, [])
 
   const getProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { navigate('/login'); return }
       setUser(user)
-      const { data } = await supabase.from('profiles').select('username, avatar_url').eq('id', user.id).single()
-      if (data) { setUsername(data.username || ''); setAvatarUrl(data.avatar_url || '') }
-    } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+
+      const { data, error } = await supabase.from('profiles').select('username, avatar_url').eq('id', user.id).single()
+      if (error) throw error
+      if (data) {
+        setUsername(data.username || '')
+        setAvatarUrl(data.avatar_url || '')
+      }
+    } catch (error) {
+      console.error('Profile fetch error:', error.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const updateProfile = async (e) => {
-    e.preventDefault(); setSaving(true); setMessage(null)
+    e.preventDefault()
+    setSaving(true)
+    setMessage('')
+    
     try {
       let finalAvatarUrl = avatarUrl
+
       if (avatarFile) {
-        const filePath = `${user.id}-${Math.random()}.${avatarFile.name.split('.').pop()}`
-        const { error: uploadErr } = await supabase.storage.from('avatars').upload(filePath, avatarFile)
-        if (uploadErr) throw uploadErr
+        const fileExt = avatarFile.name.split('.').pop()
+        const filePath = `${user.id}-${Math.random()}.${fileExt}`
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, avatarFile)
+        if (uploadError) throw uploadError
+
         const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath)
         finalAvatarUrl = urlData.publicUrl
       }
-      const { error } = await supabase.from('profiles').upsert({ id: user.id, username, avatar_url: finalAvatarUrl })
+
+      const updates = {
+        id: user.id,
+        username,
+        avatar_url: finalAvatarUrl
+      }
+
+      const { error } = await supabase.from('profiles').upsert(updates)
       if (error) throw error
-      setAvatarUrl(finalAvatarUrl); setAvatarFile(null)
-      setMessage({ type: 'success', text: 'Profile updated successfully!' })
-    } catch (e) {
-      setMessage({ type: 'error', text: 'Error: ' + e.message })
-    } finally { setSaving(false) }
+
+      setAvatarUrl(finalAvatarUrl)
+      setAvatarFile(null)
+      setMessage('Identity updated successfully.')
+    } catch (error) {
+      setMessage('Update failed: ' + error.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  if (loading) return <NavLayout><LoadingScreen text="Loading your profile..." /></NavLayout>
-
-  const avatarSrc = avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl
+  if (loading) return (
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center">
+      <div className="w-12 h-12 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-4"></div>
+      <p className="text-orange-500 font-black text-xs uppercase tracking-[0.3em]">Loading Identity...</p>
+    </div>
+  )
 
   return (
-    <NavLayout>
-      <div style={{ maxWidth: '520px', margin: '0 auto', padding: '28px 20px' }}>
-        <div className="anim-fade-up" style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '30px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '6px' }}>Your Profile</h1>
-          <p style={{ fontSize: '14px', color: 'var(--white-60)' }}>Customize how the community sees you.</p>
-        </div>
+    <div className="min-h-screen bg-[#050505] text-white font-sans p-6 pb-40 relative overflow-hidden selection:bg-orange-500 selection:text-black">
+      
+      {/* Background Ambient Glow */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-orange-500/5 rounded-full blur-[150px] pointer-events-none"></div>
 
+      <div className="max-w-md mx-auto pt-10 z-10 relative">
+        
+        {/* Header Navigation */}
+        <header className="mb-10">
+          <Link to="/dashboard" className="inline-flex items-center gap-2 text-gray-500 hover:text-orange-500 transition-all font-bold text-sm group mb-8">
+            <div className="p-2 rounded-full bg-white/5 group-hover:bg-orange-500/10">
+              <ArrowLeft size={18} />
+            </div>
+            Exit to Vault
+          </Link>
+          <h1 className="text-4xl font-black tracking-tightest uppercase italic">Your <span className="text-orange-500">Identity</span></h1>
+          <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mt-1">Choose how the vault sees you.</p>
+        </header>
+
+        {/* Feedback Message */}
         {message && (
-          <div className="anim-scale-in" style={{ padding: '14px 18px', borderRadius: '14px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', fontWeight: 600,
-            background: message.type === 'success' ? 'rgba(80,200,120,0.1)' : 'rgba(255,80,80,0.1)',
-            border: `1px solid ${message.type === 'success' ? 'rgba(80,200,120,0.25)' : 'rgba(255,80,80,0.25)'}`,
-            color: message.type === 'success' ? '#50C878' : '#FF6060' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
-            {message.text}
+          <div className={`p-4 rounded-2xl mb-8 text-xs font-black text-center uppercase tracking-widest animate-in fade-in slide-in-from-top-2 border ${message.includes('failed') ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-orange-500/10 text-orange-500 border-orange-500/20'}`}>
+            {message}
           </div>
         )}
 
-        <form onSubmit={updateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'var(--black-4)', border: '3px solid var(--border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-md)' }}>
-              {avatarSrc ? <img src={avatarSrc} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={40} color="var(--white-30)" />}
+        <form onSubmit={updateProfile} className="space-y-8">
+          
+          {/* Avatar Management */}
+          <div className="flex flex-col items-center gap-6">
+            <div className="relative group">
+              <div className="w-32 h-32 rounded-[2.5rem] bg-[#111] border-2 border-white/5 overflow-hidden flex items-center justify-center shadow-2xl transition-all group-hover:border-orange-500/50">
+                {avatarFile ? (
+                  <img src={URL.createObjectURL(avatarFile)} alt="Preview" className="w-full h-full object-cover" />
+                ) : avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={48} className="text-gray-800" />
+                )}
+              </div>
+              <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-black shadow-lg border-4 border-[#050505]">
+                <Camera size={18} strokeWidth={3} />
+                <input type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files[0])}
+                  className="absolute inset-0 opacity-0 cursor-pointer" />
+              </div>
             </div>
-            <label style={{ position: 'relative', cursor: 'pointer' }}>
-              <input type="file" accept="image/*" onChange={e => setAvatarFile(e.target.files[0])} style={{ position: 'absolute', opacity: 0, inset: 0 }} />
-              <span className="btn-ghost" style={{ fontSize: '13px', padding: '10px 20px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <Camera size={15} /> {avatarFile ? avatarFile.name : 'Change Photo'}
-              </span>
-            </label>
+            <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.2em]">Tap the camera to update photo</p>
           </div>
 
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--white-30)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Username</label>
-            <div style={{ position: 'relative' }}>
-              <User size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--white-30)', pointerEvents: 'none' }} />
-              <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Choose a unique username" required className="input-field" style={{ paddingLeft: '44px' }} />
+          {/* Username Input */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1">Display Name</label>
+            <div className="relative group">
+              <User size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-orange-500 transition-colors" />
+              <input 
+                type="text" 
+                value={username} 
+                onChange={(e) => setUsername(e.target.value)} 
+                placeholder="Unique Username" 
+                required
+                className="w-full pl-14 pr-6 py-5 bg-white/[0.02] rounded-2xl border border-white/5 focus:border-orange-500 outline-none text-sm font-bold text-white transition-all" 
+              />
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--white-30)', marginTop: '8px' }}>This is how other members will find and recognize you.</p>
           </div>
 
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--white-30)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Email Address</label>
-            <input type="email" value={user?.email || ''} disabled className="input-field" style={{ opacity: 0.4, cursor: 'not-allowed' }} />
-            <p style={{ fontSize: '12px', color: 'var(--white-30)', marginTop: '8px' }}>Email cannot be changed from this page.</p>
+          {/* Update Action */}
+          <div className="pt-4">
+            <button type="submit" disabled={saving}
+              className="w-full py-5 bg-orange-500 text-black font-black text-lg rounded-2xl hover:bg-orange-400 hover:scale-[1.02] transition-all shadow-[0_15px_30px_rgba(249,115,22,0.2)] disabled:opacity-50 flex items-center justify-center gap-3">
+              <Save size={20} strokeWidth={3} />
+              {saving ? 'SYNCING DATA...' : 'SAVE IDENTITY'}
+            </button>
           </div>
 
-          <button type="submit" disabled={saving} className="btn-orange" style={{ width: '100%', fontSize: '15px', padding: '16px' }}>
-            {saving ? (<><span className="spin" style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', display: 'inline-block' }} /> Saving...</>) : <><Save size={17} /> Save Profile</>}
-          </button>
         </form>
+
+        {/* User Stats / Badge */}
+        <div className="mt-16 p-6 bg-white/[0.02] border border-white/5 rounded-[2rem] flex items-center gap-5">
+          <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
+            <Sparkles size={24} />
+          </div>
+          <div>
+            <h4 className="text-sm font-black uppercase tracking-tighter">Premium Member</h4>
+            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Part of the original curators</p>
+          </div>
+        </div>
+
       </div>
-    </NavLayout>
+
+      {/* MOBILE BOTTOM NAVIGATION */}
+      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
+        <Link to="/dashboard" className="p-2 text-gray-500"><Home size={22} /></Link>
+        <Link to="/chat" className="p-2 text-gray-500"><MessageSquare size={22} /></Link>
+        <Link to="/leaderboard" className="p-2 text-gray-500"><Trophy size={22} /></Link>
+        <Link to="/profile" className="p-2 text-orange-500"><User size={22} /></Link>
+      </nav>
+
+      {/* Footer Branding */}
+      <footer className="text-center py-10 opacity-30">
+         <p className="text-[9px] font-black uppercase tracking-[0.4em] text-gray-500">
+          Handcrafted by <span className="text-white">Dakay</span>
+        </p>
+      </footer>
+    </div>
   )
 }

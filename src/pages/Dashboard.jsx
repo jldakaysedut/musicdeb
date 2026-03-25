@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAudio } from '../context/AudioContext' // 🎧 CONNECTED TO GLOBAL ENGINE
+import { useAudio } from '../context/AudioContext' 
 import { 
-  Play, Pause, LogOut, Plus, X, Search,
+  Play, Pause, LogOut, Plus, X, Search, Heart,
   Disc3, Music, User, Trophy, MessageSquare, Home
 } from 'lucide-react'
 
 export default function Dashboard() {
   const [tracks, setTracks] = useState([])
   const [radios, setRadios] = useState([])
+  const [userLikes, setUserLikes] = useState([]) // 💖 NEW: Track user's liked songs
   const [filter, setFilter] = useState('All') 
   const [searchQuery, setSearchQuery] = useState('') 
   const [showUpload, setShowUpload] = useState(false)
@@ -23,25 +24,35 @@ export default function Dashboard() {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
-  // 🎧 GLOBAL AUDIO STATE
   const { currentTrack, isPlaying, playTrack, togglePlay } = useAudio()
 
   useEffect(() => { 
-    fetchTracks() 
+    fetchData() 
     fetchLiveRadios()
   }, [])
 
-  const fetchTracks = async () => {
+  const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { navigate('/login'); return }
 
-    const { data } = await supabase
+    // 1. Fetch Approved & Own Tracks
+    const { data: trackData } = await supabase
       .from('tracks')
       .select('*, profiles(username)')
       .or(`status.eq.approved,user_id.eq.${user.id}`)
       .order('created_at', { ascending: false })
 
-    if (data) setTracks(data)
+    if (trackData) setTracks(trackData)
+
+    // 2. Fetch User's Likes [Epic 3]
+    const { data: likesData } = await supabase
+      .from('likes')
+      .select('track_id')
+      .eq('user_id', user.id)
+
+    if (likesData) {
+      setUserLikes(likesData.map(like => like.track_id))
+    }
   }
 
   const fetchLiveRadios = async () => {
@@ -54,6 +65,23 @@ export default function Dashboard() {
       }))
       setRadios(formattedRadios)
     } catch (e) { console.error("Radio fetch error:", e) }
+  }
+
+  // --- 💖 LIKE TOGGLE LOGIC [Epic 3] ---
+  const handleLike = async (e, trackId) => {
+    e.stopPropagation() // Prevents the song from playing when you just want to like it
+    const { data: { user } } = await supabase.auth.getUser()
+    const isLiked = userLikes.includes(trackId)
+
+    if (isLiked) {
+      // Optimistic UI Update
+      setUserLikes(prev => prev.filter(id => id !== trackId))
+      await supabase.from('likes').delete().match({ user_id: user.id, track_id: trackId })
+    } else {
+      // Optimistic UI Update
+      setUserLikes(prev => [...prev, trackId])
+      await supabase.from('likes').insert({ user_id: user.id, track_id: trackId })
+    }
   }
 
   const handleLogout = async () => {
@@ -75,11 +103,12 @@ export default function Dashboard() {
         title, artist, file_url: urlData.publicUrl,
         user_id: user.id, status: 'pending' 
       }])
-      setTitle(''); setArtist(''); setFile(null); setShowUpload(false); fetchTracks()
+      setTitle(''); setArtist(''); setFile(null); setShowUpload(false); fetchData()
     }
     setUploading(false)
   }
 
+  // --- SMART FILTERING [Epic 3] ---
   const displayedItems = filter === 'Radio' 
     ? radios.filter(r => 
         r.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -88,7 +117,8 @@ export default function Dashboard() {
     : tracks.filter(t => {
         const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                               t.artist.toLowerCase().includes(searchQuery.toLowerCase())
-        const matchesFilter = filter === 'Favorites' ? t.is_favorite : true
+        // If "Favorites" is selected, only show tracks whose ID is in userLikes array
+        const matchesFilter = filter === 'Favorites' ? userLikes.includes(t.id) : true
         return matchesSearch && matchesFilter
       })
 
@@ -138,36 +168,11 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* 4. TRENDING CAROUSEL */}
-        {filter === 'All' && tracks.length > 0 && !searchQuery && (
-          <section className="mt-4">
-            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 mb-4 px-1 italic">Trending Vaults</h2>
-            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x">
-              {tracks.slice(0, 4).map((track, i) => {
-                const isPlayingThis = currentTrack?.id === track.id
-                return (
-                  <div key={track.id} onClick={() => isPlayingThis ? togglePlay() : playTrack(i, tracks)}
-                    className={`min-w-[160px] h-[160px] border rounded-[2rem] p-5 flex flex-col justify-end relative overflow-hidden group cursor-pointer snap-center shadow-2xl transition-all ${isPlayingThis ? 'bg-orange-500/10 border-orange-500/50' : 'bg-[#0A0A0A] border-white/5'}`}>
-                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    {isPlayingThis && isPlaying ? (
-                       <Pause size={20} className="absolute top-5 right-5 text-orange-500" />
-                    ) : (
-                       <Music size={20} className={`absolute top-5 right-5 ${isPlayingThis ? 'text-orange-500' : 'text-orange-500/20'}`} />
-                    )}
-                    <h3 className={`font-black text-sm truncate leading-tight uppercase italic ${isPlayingThis ? 'text-orange-500' : 'text-white'}`}>{track.title}</h3>
-                    <p className="text-[9px] font-bold text-gray-600 uppercase mt-1 truncate">@{track.profiles?.username}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* 5. MAIN FEED */}
+        {/* 4. MAIN FEED */}
         <section className="mt-8">
           <div className="flex justify-between items-center mb-6 px-1">
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 italic">
-              {searchQuery ? 'Search Results' : (filter === 'Radio' ? 'Global Stations' : 'Public Feed')}
+              {searchQuery ? 'Search Results' : (filter === 'Radio' ? 'Global Stations' : (filter === 'Favorites' ? 'Your Liked Vaults' : 'Public Feed'))}
             </h2>
             <span className="text-[10px] font-black text-gray-700 tracking-widest uppercase">{displayedItems.length} ITEMS</span>
           </div>
@@ -177,7 +182,7 @@ export default function Dashboard() {
               <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">
                 <Disc3 size={32} className="mx-auto text-gray-900 mb-4" />
                 <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">
-                  {searchQuery ? "No matches found." : "Vault Empty."}
+                  {filter === 'Favorites' ? "You haven't liked any tracks yet." : (searchQuery ? "No matches found." : "Vault Empty.")}
                 </p>
               </div>
             ) : (
@@ -185,20 +190,36 @@ export default function Dashboard() {
                 const listToPlay = filter === 'Radio' ? radios : tracks
                 const realIndex = listToPlay.findIndex(t => t.id === item.id)
                 const isPlayingThis = currentTrack?.id === item.id
+                const isLiked = userLikes.includes(item.id)
                 
                 return (
                   <div key={item.id} onClick={() => isPlayingThis ? togglePlay() : playTrack(realIndex, listToPlay)}
                     className={`p-4 rounded-2xl flex items-center justify-between border transition-all cursor-pointer group 
                     ${isPlayingThis ? 'bg-orange-500/10 border-orange-500/20 shadow-xl' : 'bg-white/[0.03] border-transparent hover:border-white/5'}`}>
+                    
                     <div className="flex items-center gap-4 overflow-hidden">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-white/5 ${isPlayingThis ? 'bg-orange-500 text-black' : 'bg-[#111]'}`}>
                         {isPlayingThis && isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className={isPlayingThis ? "" : "text-gray-700"} />}
                       </div>
                       <div className="truncate">
                         <h4 className={`text-sm font-black truncate uppercase italic ${isPlayingThis ? 'text-orange-500' : 'text-white'}`}>{item.title}</h4>
-                        <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">{item.artist}</p>
+                        <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">
+                          {filter !== 'Radio' && <span className="text-orange-500/70 mr-1">@{item.profiles?.username}</span>}
+                          {item.artist}
+                        </p>
                       </div>
                     </div>
+
+                    {/* 💖 HEART BUTTON (Only show for tracks, not radio) */}
+                    {filter !== 'Radio' && (
+                      <button 
+                        onClick={(e) => handleLike(e, item.id)} 
+                        className="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all active:scale-75 z-10"
+                      >
+                        <Heart size={18} fill={isLiked ? "currentColor" : "none"} className={isLiked ? "text-orange-500" : "text-gray-500"} />
+                      </button>
+                    )}
+
                   </div>
                 )
               })
@@ -207,13 +228,13 @@ export default function Dashboard() {
         </section>
       </main>
 
-      {/* 6. UPLOAD FAB */}
+      {/* 5. UPLOAD FAB */}
       <button onClick={() => setShowUpload(true)} 
         className="fixed bottom-32 right-6 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-black shadow-[0_10px_30px_rgba(249,115,22,0.4)] z-40 active:scale-90 transition-transform">
         <Plus size={28} strokeWidth={3} />
       </button>
 
-      {/* 7. MODAL: UPLOAD */}
+      {/* 6. MODAL: UPLOAD */}
       {showUpload && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-3xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-sm p-8 rounded-[2.5rem] relative shadow-2xl">
@@ -235,7 +256,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 8. MOBILE BOTTOM NAVIGATION */}
+      {/* 7. MOBILE BOTTOM NAVIGATION */}
       <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
         <Link to="/dashboard" className="p-2 text-orange-500"><Home size={22} /></Link>
         <Link to="/chat" className="p-2 text-gray-700"><MessageSquare size={22} /></Link>

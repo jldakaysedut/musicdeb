@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShieldAlert, Check, X, Play, Pause, Music } from 'lucide-react'
+import { ArrowLeft, ShieldAlert, Check, X, Play, Pause, LogOut } from 'lucide-react'
 
 export default function Admin() {
   const [pendingTracks, setPendingTracks] = useState([])
@@ -17,7 +17,6 @@ export default function Admin() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { navigate('/login'); return }
 
-    // Check kung Admin nga ba talaga yung naka-login
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (!profile || profile.role !== 'admin') {
       alert("Access Denied: You are not an admin!")
@@ -29,10 +28,9 @@ export default function Admin() {
   }
 
   const fetchPendingTracks = async () => {
-    // Kunin lang yung mga kantang may status na 'pending'
     const { data, error } = await supabase
       .from('tracks')
-      .select('*, profiles(username)') // Kukunin din natin yung username ng nag-upload
+      .select('*, profiles(username)') 
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
     
@@ -42,16 +40,14 @@ export default function Admin() {
 
   const handleApprove = async (id) => {
     const { error } = await supabase.from('tracks').update({ status: 'approved' }).eq('id', id)
-    if (!error) fetchPendingTracks() // Refresh list
+    if (!error) fetchPendingTracks() 
   }
 
   const handleReject = async (id, fileUrl) => {
     if (!window.confirm("Are you sure you want to reject and delete this track?")) return
     
-    // 1. Delete sa Database
     const { error } = await supabase.from('tracks').delete().eq('id', id)
     if (!error) {
-      // 2. Delete sa Storage Bucket
       const fileName = fileUrl.split('/').pop()
       await supabase.storage.from('music-bucket').remove([fileName])
       fetchPendingTracks()
@@ -59,11 +55,13 @@ export default function Admin() {
   }
 
   const togglePlay = (id) => {
-    if (playingId === id) {
-      setPlayingId(null)
-    } else {
-      setPlayingId(id)
-    }
+    if (playingId === id) setPlayingId(null)
+    else setPlayingId(id)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
   }
 
   if (loading) return <div className="min-h-screen bg-[#090909] flex items-center justify-center text-green-500 font-bold">Verifying Admin Credentials...</div>
@@ -73,9 +71,17 @@ export default function Admin() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-red-500/5 rounded-full blur-[150px] pointer-events-none"></div>
 
       <div className="max-w-3xl mx-auto pt-10 z-10 relative">
-        <Link to="/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8">
-          <ArrowLeft size={20} /> Back to Vault
-        </Link>
+        
+        {/* BAGONG HEADER AREA PARA SA ADMIN */}
+        <div className="flex justify-between items-center mb-8">
+          <Link to="/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+            <ArrowLeft size={20} /> Go to Music Vault
+          </Link>
+          
+          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-[#121212] rounded-full border border-[#222] hover:border-red-500/50 hover:text-red-400 transition-colors shadow-lg text-sm font-bold text-gray-400">
+            <LogOut size={16} /> Logout
+          </button>
+        </div>
 
         <div className="flex items-center gap-4 mb-2">
           <div className="p-3 bg-red-500/10 rounded-2xl border border-red-500/20">
@@ -108,7 +114,7 @@ export default function Admin() {
                   <div className="overflow-hidden pr-4">
                     <h3 className="font-bold text-lg text-white truncate">{track.title}</h3>
                     <p className="text-sm text-gray-400 truncate">{track.artist}</p>
-                    <p className="text-xs text-green-500 font-medium mt-1">Uploaded by: {track.profiles?.username || 'Unknown User'}</p>
+                    <p className="text-xs text-green-500 font-medium mt-1">Uploaded by: @{track.profiles?.username || 'Unknown User'}</p>
                   </div>
                 </div>
 
@@ -121,7 +127,6 @@ export default function Admin() {
                   </button>
                 </div>
 
-                {/* Hidden Audio Player for Previewing */}
                 {playingId === track.id && (
                   <audio src={track.file_url} autoPlay onEnded={() => setPlayingId(null)} className="hidden" />
                 )}

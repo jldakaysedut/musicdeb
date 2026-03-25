@@ -13,10 +13,30 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault()
-    setErrorMsg(''); setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setErrorMsg(error.message); setLoading(false) } 
-    else { navigate('/dashboard') }
+    setErrorMsg('')
+    setLoading(true)
+    
+    // 1. Authenticate with Supabase
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    
+    if (authError) { 
+      setErrorMsg(authError.message)
+      setLoading(false) 
+    } else { 
+      // 2. Check the user's role from the profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', authData.user.id)
+        .single()
+
+      // 3. Route them based on their role
+      if (profile && profile.role === 'admin') {
+        navigate('/admin')
+      } else {
+        navigate('/dashboard')
+      }
+    }
   }
 
   return (

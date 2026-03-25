@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, Save, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, User, Save, Camera } from 'lucide-react'
 
 export default function Profile() {
   const [loading, setLoading] = useState(true)
@@ -9,6 +9,7 @@ export default function Profile() {
   const [user, setUser] = useState(null)
   const [username, setUsername] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [avatarFile, setAvatarFile] = useState(null) // Para sa local image file
   const [message, setMessage] = useState('')
   const navigate = useNavigate()
 
@@ -39,15 +40,39 @@ export default function Profile() {
     e.preventDefault()
     setSaving(true)
     setMessage('')
+    
     try {
+      let finalAvatarUrl = avatarUrl
+
+      // Kung may piniling bagong picture yung user, i-upload muna natin!
+      if (avatarFile) {
+        const fileExt = avatarFile.name.split('.').pop()
+        const filePath = `${user.id}-${Math.random()}.${fileExt}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, avatarFile)
+
+        if (uploadError) throw uploadError
+
+        // Kunin yung public link ng in-upload na picture
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath)
+        finalAvatarUrl = urlData.publicUrl
+      }
+
+      // I-save sa database yung profile details
       const updates = {
         id: user.id,
         username,
-        avatar_url: avatarUrl,
+        avatar_url: finalAvatarUrl,
         updated_at: new Date()
       }
+
       const { error } = await supabase.from('profiles').upsert(updates)
       if (error) throw error
+
+      setAvatarUrl(finalAvatarUrl)
+      setAvatarFile(null) // i-clear yung file input pagkatapos
       setMessage('Profile updated successfully!')
     } catch (error) {
       setMessage('Error updating profile: ' + error.message)
@@ -77,13 +102,29 @@ export default function Profile() {
         )}
 
         <form onSubmit={updateProfile} className="flex flex-col gap-6">
-          <div className="flex justify-center mb-4">
-            <div className="w-32 h-32 rounded-full bg-[#121212] border-2 border-[#222] overflow-hidden flex items-center justify-center shadow-2xl">
-              {avatarUrl ? (
+          {/* Avatar Preview */}
+          <div className="flex justify-center mb-2">
+            <div className="w-32 h-32 rounded-full bg-[#121212] border-2 border-[#222] overflow-hidden flex items-center justify-center shadow-2xl relative group">
+              {/* Kung may pinili s'yang file ngayon, ipakita agad as preview. Kung wala, ipakita yung galing database. */}
+              {avatarFile ? (
+                <img src={URL.createObjectURL(avatarFile)} alt="Preview" className="w-full h-full object-cover" />
+              ) : avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <User size={48} className="text-[#333]" />
               )}
+            </div>
+          </div>
+
+          {/* Local Image Uploader */}
+          <div className="relative border-2 border-dashed border-[#333] rounded-2xl p-4 text-center bg-[#141414] hover:border-green-500/50 hover:bg-[#1a1a1a] transition-all group">
+            <input type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files[0])}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            <div className="flex items-center justify-center gap-2">
+              <Camera size={20} className="text-gray-500 group-hover:text-green-500 transition-colors" />
+              <p className="text-sm text-gray-400 font-medium group-hover:text-white transition-colors">
+                {avatarFile ? avatarFile.name : "Tap to upload picture"}
+              </p>
             </div>
           </div>
 
@@ -96,18 +137,9 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="relative">
-            <label className="text-sm font-bold text-gray-400 mb-2 block">Avatar Image URL (Optional)</label>
-            <div className="relative">
-              <ImageIcon size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input type="url" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://example.com/my-pic.jpg"
-                className="w-full pl-12 pr-4 py-4 bg-[#141414] rounded-2xl focus:outline-none border border-[#222] focus:border-green-500 text-white font-medium transition-colors" />
-            </div>
-          </div>
-
           <button type="submit" disabled={saving}
             className="w-full py-4 mt-4 bg-green-500 text-black font-extrabold text-lg rounded-2xl hover:bg-green-400 transition-all shadow-[0_10px_20px_rgba(34,197,94,0.2)] disabled:opacity-50 flex items-center justify-center gap-2">
-            <Save size={20} /> {saving ? 'Saving Profile...' : 'Save Profile'}
+            <Save size={20} /> {saving ? 'Uploading & Saving...' : 'Save Profile'}
           </button>
         </form>
       </div>

@@ -21,7 +21,7 @@ export default function Dashboard() {
   const { currentTrack, isPlaying, playTrack, togglePlay } = useAudio()
 
   useEffect(() => { 
-    fetchUndergroundMusic('Hev Abi') 
+    fetchYouTubeMusic('Hev Abi') 
     fetchSavedTracks() 
   }, [])
 
@@ -38,39 +38,42 @@ export default function Dashboard() {
     if (data) setSavedTracks(data)
   }
 
-  // 🏴‍☠️ THE PROXY HACK: Piped API for Search + Invidious for Full Audio Stream
-  const fetchUndergroundMusic = async (query = 'Hev Abi') => {
+  // 🔴 THE HYBRID HACK: YouTube Search + MP3 Converter API
+  const fetchYouTubeMusic = async (query = 'Hev Abi') => {
     setLoading(true)
     try {
-      const searchUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query + ' audio')}`
+      // 1. Search the YouTube database (using a reliable proxy to bypass API keys)
+      const searchUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query + ' official audio')}`
       const response = await fetch(searchUrl)
       const json = await response.json()
       
       if (json.items && json.items.length > 0) {
-        const proxyTracks = json.items
+        const ytTracks = json.items
           .filter(item => item.type === 'stream') 
           .slice(0, 30) 
           .map(track => {
             const videoId = track.url.replace('/watch?v=', '')
-            // The golden ticket: Direct audio stream from Invidious server
-            const audioStreamUrl = `https://invidious.flokinet.to/latest_version?id=${videoId}&itag=140`
+            
+            // 2. The Converter Hack: Dumadaan tayo sa public free API para i-convert ang YT to MP3/M4A
+            // Ito ang magpapatugtog ng full song at magbibigay ng download capability!
+            const directAudioUrl = `https://api.siputzx.my.id/api/d/ytmp4?url=https://www.youtube.com/watch?v=${videoId}`
             
             return {
               id: videoId,
               title: track.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
-              artist: track.uploaderName || 'Unknown Artist',
-              file_url: audioStreamUrl,
-              download_url: audioStreamUrl,
+              artist: track.uploaderName || 'YouTube Artist',
+              file_url: directAudioUrl,     // 100% Full Audio Stream
+              download_url: directAudioUrl, // 100% Downloadable
               cover_image: track.thumbnail
             }
           })
         
-        setTracks(proxyTracks)
+        setTracks(ytTracks)
       } else {
         setTracks([])
       }
     } catch (error) {
-      console.error("Proxy API Fetch Error:", error)
+      console.error("YouTube Fetch Error:", error)
       setTracks([])
     }
     setLoading(false)
@@ -80,7 +83,7 @@ export default function Dashboard() {
     e.preventDefault()
     if (searchQuery.trim()) {
       setFilter('All')
-      fetchUndergroundMusic(searchQuery)
+      fetchYouTubeMusic(searchQuery)
     }
   }
 
@@ -141,7 +144,7 @@ export default function Dashboard() {
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-orange-500 transition-colors" />
           <input
             type="text"
-            placeholder="Search the underground network..."
+            placeholder="Search the YouTube Network..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-white/[0.02] rounded-2xl border border-white/5 focus:border-orange-500 outline-none text-sm font-bold text-white transition-all"
@@ -161,7 +164,7 @@ export default function Dashboard() {
         <section>
           <div className="flex justify-between items-center mb-6 px-1">
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 italic">
-              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Top Streams')}
+              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Trending on YouTube')}
             </h2>
             <span className="text-[10px] font-black text-gray-700 tracking-widest uppercase">{displayedItems.length} TRACKS</span>
           </div>
@@ -170,7 +173,7 @@ export default function Dashboard() {
             {loading && filter === 'All' ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-4"></div>
-                <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">Bypassing Mainframes...</p>
+                <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">Extracting Audio...</p>
               </div>
             ) : displayedItems.length === 0 ? (
               <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">

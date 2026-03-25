@@ -60,12 +60,11 @@ export default function Profile() {
         finalAvatarUrl = urlData.publicUrl
       }
 
-      // I-save sa database yung profile details
+      // I-save sa database yung profile details (wala nang updated_at dito)
       const updates = {
         id: user.id,
         username,
-        avatar_url: finalAvatarUrl,
-        updated_at: new Date()
+        avatar_url: finalAvatarUrl
       }
 
       const { error } = await supabase.from('profiles').upsert(updates)
@@ -105,7 +104,6 @@ export default function Profile() {
           {/* Avatar Preview */}
           <div className="flex justify-center mb-2">
             <div className="w-32 h-32 rounded-full bg-[#121212] border-2 border-[#222] overflow-hidden flex items-center justify-center shadow-2xl relative group">
-              {/* Kung may pinili s'yang file ngayon, ipakita agad as preview. Kung wala, ipakita yung galing database. */}
               {avatarFile ? (
                 <img src={URL.createObjectURL(avatarFile)} alt="Preview" className="w-full h-full object-cover" />
               ) : avatarUrl ? (

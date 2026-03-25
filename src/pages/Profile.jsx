@@ -32,7 +32,7 @@ export default function Profile() {
     
     setProfile(profileData)
 
-    // 2. Fetch User's Saved Tracks (from our new hybrid table)
+    // 2. Fetch User's Saved Tracks (mula sa bago nating table)
     const { data: tracksData } = await supabase
       .from('saved_tracks')
       .select('*')
@@ -43,12 +43,12 @@ export default function Profile() {
     setLoading(false)
   }
 
-  // --- REMOVE FUNCTION ---
+  // --- REMOVE FROM VAULT ---
   const handleRemove = async (e, id) => {
-    e.stopPropagation() // Prevent playing the song when clicking delete
+    e.stopPropagation() 
     if (!window.confirm("Remove this track from your personal vault?")) return
 
-    // Optimistic UI Update
+    // Optimistic UI Update para mabilis
     setSavedTracks(prev => prev.filter(t => t.id !== id))
 
     try {
@@ -56,7 +56,7 @@ export default function Profile() {
       if (error) throw error
     } catch (error) {
       console.error("Remove failed:", error.message)
-      fetchUserData() // Re-sync if failed
+      fetchUserData() 
     }
   }
 
@@ -82,7 +82,7 @@ export default function Profile() {
         {/* HEADER & PROFILE CARD */}
         <header className="mb-10 pt-4">
           <div className="flex justify-between items-start mb-8">
-            <h1 className="text-3xl font-black tracking-tighter uppercase italic">Personal <span className="text-orange-500">Vault</span></h1>
+            <h1 className="text-3xl font-black tracking-tighter uppercase italic">My <span className="text-orange-500">Library</span></h1>
             <button onClick={handleLogout} className="w-10 h-10 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center border border-red-500/20 hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-90 hidden md:flex">
               <LogOut size={18} />
             </button>
@@ -100,7 +100,7 @@ export default function Profile() {
               <h2 className="text-2xl font-black uppercase italic tracking-tight text-white">@{profile?.username || 'Curator'}</h2>
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-[10px] font-black bg-white/5 text-gray-400 px-3 py-1 rounded-full uppercase tracking-widest border border-white/5">
-                  {profile?.role === 'admin' ? 'Administrator' : 'Verified Listener'}
+                  Premium Account
                 </span>
                 <span className="text-[10px] font-black bg-orange-500/10 text-orange-500 px-3 py-1 rounded-full uppercase tracking-widest border border-orange-500/20 flex items-center gap-1">
                   <Music size={12} /> {savedTracks.length} Saved
@@ -113,15 +113,15 @@ export default function Profile() {
         {/* SAVED TRACKS COLLECTION */}
         <section>
           <div className="flex items-center justify-between mb-6 px-2">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600">Your Collection</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600">Offline Ready</h3>
           </div>
 
           <div className="space-y-3">
             {savedTracks.length === 0 ? (
               <div className="text-center py-20 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">
                 <Disc3 size={32} className="mx-auto text-gray-800 mb-4" />
-                <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">Your vault is empty.</p>
-                <Link to="/dashboard" className="inline-block mt-4 px-6 py-3 bg-orange-500 text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-orange-400 transition-all">Explore Network</Link>
+                <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">Your library is empty.</p>
+                <Link to="/dashboard" className="inline-block mt-4 px-6 py-3 bg-orange-500 text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-orange-400 transition-all">Search Network</Link>
               </div>
             ) : (
               savedTracks.map((track, index) => {
@@ -132,7 +132,7 @@ export default function Profile() {
                     className={`p-4 bg-[#0A0A0A] rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between gap-5 hover:border-white/10 shadow-xl group ${isPlayingThis ? 'border-orange-500/30 bg-orange-500/5' : 'border-white/5'}`}>
                     
                     <div className="flex items-center gap-4 overflow-hidden">
-                      {/* Album Art Cover */}
+                      {/* High-Res Album Art */}
                       <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-[#111]">
                         <img src={track.cover_image || '/api/placeholder/56/56'} alt="cover" className="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity" />
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -146,11 +146,11 @@ export default function Profile() {
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 z-10">
+                    {/* Actions: Download & Delete */}
+                    <div className="flex items-center gap-1 z-10 shrink-0">
                       {track.file_url && (
                         <a 
-                          href={track.file_url} // Using file_url as fallback if download_url isn't saved
+                          href={track.file_url} 
                           target="_blank" 
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()} 
@@ -179,13 +179,6 @@ export default function Profile() {
         <Link to="/leaderboard" className="p-2 text-gray-600"><Trophy size={22} /></Link>
         <Link to="/profile" className="p-2 text-orange-500"><User size={22} /></Link>
       </nav>
-
-      {/* FOOTER */}
-      <footer className="hidden md:block absolute bottom-8 right-12 opacity-30">
-         <p className="text-[9px] font-black uppercase tracking-[0.4em] text-gray-600 italic">
-          Designed by <span className="text-white">Dakay</span>
-        </p>
-      </footer>
     </div>
   )
 }

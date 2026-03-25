@@ -4,14 +4,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAudio } from '../context/AudioContext' 
 import { 
   Play, Pause, LogOut, Search, Download, Heart,
-  Disc3, Music, User, Trophy, MessageSquare, Home
+  Disc3, User, Trophy, MessageSquare, Home
 } from 'lucide-react'
-
-const JAMENDO_CLIENT_ID = 'b5b428d0' 
 
 export default function Dashboard() {
   const [tracks, setTracks] = useState([])
-  const [savedTracks, setSavedTracks] = useState([]) // 💖 The Hybrid Database State
+  const [savedTracks, setSavedTracks] = useState([])
   const [filter, setFilter] = useState('All') 
   const [searchQuery, setSearchQuery] = useState('') 
   const [loading, setLoading] = useState(true)
@@ -23,11 +21,12 @@ export default function Dashboard() {
   const { currentTrack, isPlaying, playTrack, togglePlay } = useAudio()
 
   useEffect(() => { 
-    fetchOnlineMusic('acoustic') 
-    fetchSavedTracks() // Load favorites on mount
+    // Default vibe check: Mag-search agad ng OPM/Trending pagkabukas ng app
+    fetchUndergroundMusic('Hev Abi') 
+    fetchSavedTracks() 
   }, [])
 
-  // 1. Fetch User's Saved Tracks from Supabase
+  // 1. Fetch User's Vault from Supabase
   const fetchSavedTracks = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -41,29 +40,40 @@ export default function Dashboard() {
     if (data) setSavedTracks(data)
   }
 
-  // 2. Fetch Global Tracks from Jamendo API
-  const fetchOnlineMusic = async (query = '') => {
+  // 2. 🌐 THE UNDERGROUND ENGINE: Fetching FULL tracks from JioSaavn API
+  const fetchUndergroundMusic = async (query = 'Trending') => {
     setLoading(true)
     try {
-      const endpoint = query 
-        ? `https://api.jamendo.com/v3.0/tracks/?client_id=${JAMENDO_CLIENT_ID}&format=jsonpretty&limit=30&search=${query}`
-        : `https://api.jamendo.com/v3.0/tracks/?client_id=${JAMENDO_CLIENT_ID}&format=jsonpretty&limit=30&boost=listens_month`
-
+      // Heto ang sikreto: Ang unofficial public wrapper ng JioSaavn
+      const endpoint = `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=30`
       const response = await fetch(endpoint)
-      const data = await response.json()
+      const json = await response.json()
       
-      const onlineTracks = data.results.map(track => ({
-        id: track.id.toString(), // Convert to string for consistent comparison
-        title: track.name,
-        artist: track.artist_name,
-        file_url: track.audio,
-        download_url: track.audiodownload,
-        cover_image: track.image
-      }))
-      
-      setTracks(onlineTracks)
+      if (json.success && json.data && json.data.results) {
+        const undergroundTracks = json.data.results.map(track => {
+          // Kunin ang pinakamagandang quality ng audio at album art (nandun madalas sa huling array)
+          const bestAudio = track.downloadUrl?.pop()?.url || ''
+          const bestImage = track.image?.pop()?.url || ''
+          const artistName = track.artists?.primary?.[0]?.name || 'Unknown Artist'
+
+          return {
+            id: track.id,
+            // Nililinis natin ang title kung sakaling may HTML codes tulad ng &quot;
+            title: track.name.replace(/&quot;/g, '"').replace(/&#039;/g, "'"),
+            artist: artistName,
+            file_url: bestAudio,       // 100% Full Audio Stream!
+            download_url: bestAudio,   // Direct file link para sa Download button
+            cover_image: bestImage     // 500x500 High-Res Cover!
+          }
+        })
+        
+        setTracks(undergroundTracks)
+      } else {
+        setTracks([]) // Walang nahanap
+      }
     } catch (error) {
-      console.error("API Fetch Error:", error)
+      console.error("Underground Fetch Error:", error)
+      setTracks([])
     }
     setLoading(false)
   }
@@ -71,36 +81,33 @@ export default function Dashboard() {
   const handleSearch = (e) => {
     e.preventDefault()
     if (searchQuery.trim()) {
-      setFilter('All') // Reset filter to show search results
-      fetchOnlineMusic(searchQuery)
+      setFilter('All')
+      fetchUndergroundMusic(searchQuery)
     }
   }
 
-  // 3. 💖 THE HYBRID SAVE FUNCTION
+  // 3. 💖 THE VAULT SYSTEM
   const handleLike = async (e, track) => {
     e.stopPropagation()
     const { data: { user } } = await supabase.auth.getUser()
-    const isLiked = savedTracks.some(st => st.jamendo_id === track.id)
+    const isLiked = savedTracks.some(st => st.track_id === track.id) // Pinalitan ang jamendo_id to track_id
 
     if (isLiked) {
-      // Unsave: Remove from UI and Database
-      setSavedTracks(prev => prev.filter(st => st.jamendo_id !== track.id))
-      await supabase.from('saved_tracks').delete().match({ user_id: user.id, jamendo_id: track.id })
+      // Unsave: Tanggalin sa UI at Database
+      setSavedTracks(prev => prev.filter(st => st.track_id !== track.id))
+      await supabase.from('saved_tracks').delete().match({ user_id: user.id, track_id: track.id })
     } else {
       // Save: Construct the record
       const newSavedTrack = {
         user_id: user.id,
-        jamendo_id: track.id,
+        track_id: track.id,
         title: track.title,
         artist: track.artist,
         file_url: track.file_url,
         cover_image: track.cover_image
       }
       
-      // Update UI optimistically
       setSavedTracks(prev => [newSavedTrack, ...prev])
-      
-      // Save to Supabase
       await supabase.from('saved_tracks').insert(newSavedTrack)
     }
   }
@@ -110,10 +117,9 @@ export default function Dashboard() {
     navigate('/login')
   }
 
-  // 4. SMART DISPLAY LOGIC
-  // If viewing 'Favorites', map over the Supabase data. Otherwise, use the Jamendo API data.
+  // Map the correct array based on Filter (All = Internet, Favorites = Supabase)
   const displayedItems = filter === 'Favorites' 
-    ? savedTracks.map(st => ({ ...st, id: st.jamendo_id })) 
+    ? savedTracks.map(st => ({ ...st, id: st.track_id })) 
     : tracks
 
   return (
@@ -130,7 +136,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
            <Link to="/leaderboard" className="hidden md:flex w-10 h-10 bg-white/5 rounded-xl items-center justify-center hover:border-orange-500/50 transition-colors"><Trophy size={18} /></Link>
            <Link to="/profile" className="hidden md:flex w-10 h-10 bg-white/5 rounded-xl items-center justify-center hover:border-orange-500/50 transition-colors"><User size={18} /></Link>
-           <button onClick={handleLogout} className="w-10 h-10 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg">
+           <button onClick={handleLogout} className="w-10 h-10 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-95">
              <LogOut size={18} strokeWidth={3} />
            </button>
         </div>
@@ -138,18 +144,19 @@ export default function Dashboard() {
 
       <main className="max-w-5xl mx-auto px-6">
         
+        {/* SEARCH BAR */}
         <form onSubmit={handleSearch} className="mb-6 relative group">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-orange-500 transition-colors" />
           <input
             type="text"
-            placeholder="Search the global network..."
+            placeholder="Search mainstream tracks (e.g., Hev Abi, Taylor Swift)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-white/[0.02] rounded-2xl border border-white/5 focus:border-orange-500 outline-none text-sm font-bold text-white transition-all"
           />
         </form>
 
-        {/* CATEGORY PILLS */}
+        {/* PILLS */}
         <div className="flex gap-3 overflow-x-auto py-2 mb-6 no-scrollbar">
           {['All', 'Favorites'].map((cat) => (
             <button key={cat} onClick={() => setFilter(cat)} 
@@ -160,30 +167,32 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* FEED */}
         <section>
           <div className="flex justify-between items-center mb-6 px-1">
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 italic">
-              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Discover')}
+              {filter === 'Favorites' ? 'Your Personal Vault' : (searchQuery ? `Results for "${searchQuery}"` : 'Top Hits')}
             </h2>
             <span className="text-[10px] font-black text-gray-700 tracking-widest uppercase">{displayedItems.length} TRACKS</span>
           </div>
 
           <div className="space-y-3">
             {loading && filter === 'All' ? (
-              <div className="flex justify-center py-20">
-                <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin"></div>
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-4"></div>
+                <p className="text-orange-500 font-black text-[10px] uppercase tracking-[0.2em]">Searching Global Network...</p>
               </div>
             ) : displayedItems.length === 0 ? (
               <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">
                 <Disc3 size={32} className="mx-auto text-gray-900 mb-4" />
                 <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">
-                  {filter === 'Favorites' ? "You haven't saved any tracks yet." : "No tracks found on the network."}
+                  {filter === 'Favorites' ? "You haven't saved any tracks yet." : "No tracks found."}
                 </p>
               </div>
             ) : (
               displayedItems.map((item, index) => {
                 const isPlayingThis = currentTrack?.file_url === item.file_url
-                const isLiked = savedTracks.some(st => st.jamendo_id === item.id)
+                const isLiked = savedTracks.some(st => st.track_id === item.id)
                 
                 return (
                   <div key={item.id} onClick={() => isPlayingThis ? togglePlay() : playTrack(index, displayedItems)}
@@ -191,7 +200,8 @@ export default function Dashboard() {
                     ${isPlayingThis ? 'bg-orange-500/10 border-orange-500/20 shadow-xl' : 'bg-[#0A0A0A] border-white/5 hover:border-white/10'}`}>
                     
                     <div className="flex items-center gap-4 overflow-hidden">
-                      <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-white/10">
+                      {/* Album Art Cover */}
+                      <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-[#111]">
                         <img src={item.cover_image || '/api/placeholder/56/56'} alt="cover" className="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity" />
                         <div className="absolute inset-0 flex items-center justify-center">
                           {isPlayingThis && isPlaying ? <Pause size={20} className="text-white drop-shadow-lg" fill="currentColor" /> : <Play size={20} className="text-white opacity-0 group-hover:opacity-100 drop-shadow-lg" fill="currentColor" />}
@@ -206,7 +216,7 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 z-10">
+                    <div className="flex items-center gap-1 z-10 shrink-0">
                       <button 
                         onClick={(e) => handleLike(e, item)} 
                         className="p-3 bg-transparent rounded-xl hover:bg-white/5 transition-all active:scale-75"
@@ -235,6 +245,7 @@ export default function Dashboard() {
         </section>
       </main>
 
+      {/* MOBILE BOTTOM NAV */}
       <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
         <Link to="/dashboard" className="p-2 text-orange-500"><Home size={22} /></Link>
         <Link to="/chat" className="p-2 text-gray-700"><MessageSquare size={22} /></Link>

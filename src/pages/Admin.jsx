@@ -1,20 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
-import { 
-  ArrowLeft, ShieldAlert, Users, Database, 
-  MessageSquare, Activity, Disc3, Clock 
-} from 'lucide-react'
+import { ArrowLeft, ShieldAlert, Users, Database, MessageSquare, Activity, Disc3, Clock } from 'lucide-react'
 
 export default function Admin() {
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalSaves: 0,
-    totalMessages: 0
-  })
+  const [stats, setStats] = useState({ totalUsers: 0, totalSaves: 0, totalMessages: 0 })
   const [recentActivity, setRecentActivity] = useState([])
-
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -31,12 +23,10 @@ export default function Admin() {
       navigate('/dashboard')
       return
     }
-
     await fetchSystemData()
   }
 
   const fetchSystemData = async () => {
-    // 1. Fetch Exact Counts for Analytics
     const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
     const { count: savesCount } = await supabase.from('saved_tracks').select('*', { count: 'exact', head: true })
     const { count: msgCount } = await supabase.from('messages').select('*', { count: 'exact', head: true })
@@ -47,7 +37,6 @@ export default function Admin() {
       totalMessages: msgCount || 0
     })
 
-    // 2. Fetch Latest Network Activity (Who saved what recently)
     const { data: activity } = await supabase
       .from('saved_tracks')
       .select('*, profiles(username)')
@@ -72,13 +61,9 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans p-6 pb-40 relative overflow-hidden selection:bg-orange-500 selection:text-black">
-      
-      {/* Background Authority Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-orange-500/5 rounded-full blur-[150px] pointer-events-none"></div>
 
       <div className="max-w-5xl mx-auto pt-10 z-10 relative">
-        
-        {/* 1. ADMIN HEADER */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-orange-500 rounded-2xl shadow-[0_0_30px_rgba(249,115,22,0.3)]">
@@ -89,10 +74,9 @@ export default function Admin() {
               <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mt-1 italic">Network Analytics</p>
             </div>
           </div>
-          
           <div className="flex items-center gap-3">
             <Link to="/dashboard" className="px-5 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:text-orange-500 transition-all flex items-center gap-2">
-              <ArrowLeft size={16} /> Exit to Vault
+              <ArrowLeft size={16} /> Exit
             </Link>
             <button onClick={handleLogout} className="px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
               Logoff
@@ -100,14 +84,13 @@ export default function Admin() {
           </div>
         </header>
 
-        {/* 2. 📊 METRICS DASHBOARD */}
+        {/* METRICS DASHBOARD */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-          
           <div className="p-6 bg-[#0A0A0A] border border-white/5 rounded-[2rem] relative overflow-hidden group hover:border-orange-500/30 transition-all shadow-xl">
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Users size={64} /></div>
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-orange-500/10 rounded-lg"><Users size={16} className="text-orange-500" /></div>
-              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Total Curators</h3>
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Total Users</h3>
             </div>
             <p className="text-4xl font-black tracking-tighter text-white">{stats.totalUsers}</p>
           </div>
@@ -116,7 +99,7 @@ export default function Admin() {
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Database size={64} /></div>
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-orange-500/10 rounded-lg"><Database size={16} className="text-orange-500" /></div>
-              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Total Vault Saves</h3>
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Saved Tracks</h3>
             </div>
             <p className="text-4xl font-black tracking-tighter text-white">{stats.totalSaves}</p>
           </div>
@@ -125,14 +108,13 @@ export default function Admin() {
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><MessageSquare size={64} /></div>
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-orange-500/10 rounded-lg"><MessageSquare size={16} className="text-orange-500" /></div>
-              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Lounge Messages</h3>
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Chat Logs</h3>
             </div>
             <p className="text-4xl font-black tracking-tighter text-white">{stats.totalMessages}</p>
           </div>
-
         </section>
 
-        {/* 3. RECENT ACTIVITY FEED */}
+        {/* RECENT ACTIVITY */}
         <div className="flex items-center justify-between mb-6 px-2 border-b border-white/5 pb-4">
           <div className="flex items-center gap-2">
             <Activity size={16} className="text-orange-500" />
@@ -149,39 +131,30 @@ export default function Admin() {
           <div className="space-y-3">
             {recentActivity.map((activity) => (
               <div key={activity.id} className="p-5 bg-white/[0.02] rounded-[1.5rem] border border-white/5 flex items-center justify-between transition-all hover:bg-white/[0.04]">
-                
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-[#111] border border-white/10 flex items-center justify-center shrink-0">
-                    <Disc3 size={16} className="text-orange-500" />
+                    <img src={activity.cover_image} alt="cover" className="w-full h-full object-cover rounded-full opacity-50" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-gray-300">
-                      <span className="text-orange-500 font-black">@{activity.profiles?.username}</span> saved a track to their vault.
+                      <span className="text-orange-500 font-black">@{activity.profiles?.username}</span> saved a track.
                     </p>
                     <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-0.5 italic">
                       {activity.title} — {activity.artist}
                     </p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-1.5 text-gray-600">
                   <Clock size={12} />
                   <span className="text-[9px] font-black uppercase tracking-widest">
                     {new Date(activity.created_at).toLocaleDateString()}
                   </span>
                 </div>
-
               </div>
             ))}
           </div>
         )}
       </div>
-
-      <footer className="text-center py-10 opacity-30 mt-10">
-         <p className="text-[9px] font-black uppercase tracking-[0.4em] text-gray-500">
-          Admin Suite Handcrafted by <span className="text-white">Dakay</span>
-        </p>
-      </footer>
     </div>
   )
 }

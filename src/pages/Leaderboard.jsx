@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link } from 'react-router-dom'
-import { Trophy, Crown, Medal, User, Home, MessageSquare, Disc3, ArrowLeft } from 'lucide-react'
+import { Trophy, Crown, User, Home, MessageSquare, Disc3, ArrowLeft } from 'lucide-react'
 
 export default function Leaderboard() {
   const [leaders, setLeaders] = useState([])
@@ -12,24 +12,20 @@ export default function Leaderboard() {
   }, [])
 
   const fetchLeaderboard = async () => {
-    // 1. Kunin lahat ng profiles
+    // Kunin ang profiles at ang bagong saved_tracks table
     const { data: profiles } = await supabase.from('profiles').select('*')
-    
-    // 2. Kunin lahat ng saved_tracks para mabilang natin per user
     const { data: savedTracks } = await supabase.from('saved_tracks').select('user_id')
 
     if (profiles && savedTracks) {
-      // Bilangin ang tracks per user
       const trackCounts = savedTracks.reduce((acc, track) => {
         acc[track.user_id] = (acc[track.user_id] || 0) + 1
         return acc
       }, {})
 
-      // I-merge ang bilang sa profile data at i-sort pababa
       const rankedUsers = profiles
         .map(p => ({ ...p, trackCount: trackCounts[p.id] || 0 }))
         .sort((a, b) => b.trackCount - a.trackCount)
-        .slice(0, 10) // Kunin lang ang Top 10
+        .slice(0, 10) 
 
       setLeaders(rankedUsers)
     }
@@ -44,13 +40,9 @@ export default function Leaderboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans pb-40 relative overflow-hidden selection:bg-orange-500 selection:text-black">
-      
-      {/* Background Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-orange-500/5 rounded-full blur-[150px] pointer-events-none"></div>
 
       <div className="max-w-3xl mx-auto p-6 z-10 relative">
-        
-        {/* HEADER */}
         <header className="flex items-center gap-4 mb-10 pt-4">
           <Link to="/dashboard" className="p-3 bg-white/5 rounded-2xl hover:bg-orange-500 hover:text-black transition-all">
             <ArrowLeft size={20} />
@@ -59,14 +51,12 @@ export default function Leaderboard() {
             <h1 className="text-3xl font-black tracking-tighter uppercase italic flex items-center gap-3">
               Hall of <span className="text-orange-500">Fame</span>
             </h1>
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Top Network Curators</p>
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Top Mainstream Curators</p>
           </div>
         </header>
 
         {/* TOP 3 PODIUM */}
         <section className="flex items-end justify-center gap-4 mb-12 h-64 mt-12">
-          
-          {/* Rank 2 */}
           {leaders[1] && (
             <div className="flex flex-col items-center animate-in slide-in-from-bottom-10 duration-500 delay-100">
               <div className="w-16 h-16 rounded-full border-4 border-[#C0C0C0] bg-[#111] overflow-hidden mb-3 relative shadow-[0_0_20px_rgba(192,192,192,0.2)]">
@@ -80,7 +70,6 @@ export default function Leaderboard() {
             </div>
           )}
 
-          {/* Rank 1 */}
           {leaders[0] && (
             <div className="flex flex-col items-center animate-in slide-in-from-bottom-10 duration-500 z-10">
               <Crown size={32} className="text-orange-500 mb-2 drop-shadow-[0_0_15px_rgba(249,115,22,0.6)]" />
@@ -95,7 +84,6 @@ export default function Leaderboard() {
             </div>
           )}
 
-          {/* Rank 3 */}
           {leaders[2] && (
             <div className="flex flex-col items-center animate-in slide-in-from-bottom-10 duration-500 delay-200">
               <div className="w-16 h-16 rounded-full border-4 border-[#CD7F32] bg-[#111] overflow-hidden mb-3 relative shadow-[0_0_20px_rgba(205,127,50,0.2)]">
@@ -108,10 +96,9 @@ export default function Leaderboard() {
               </div>
             </div>
           )}
-
         </section>
 
-        {/* REST OF THE RANKINGS (4-10) */}
+        {/* RANKINGS 4-10 */}
         <section className="space-y-3">
           {leaders.slice(3).map((user, index) => (
             <div key={user.id} className="p-4 bg-[#0A0A0A] rounded-[2rem] border border-white/5 flex items-center justify-between transition-all hover:border-white/10 shadow-lg group">
@@ -139,10 +126,8 @@ export default function Leaderboard() {
              </div>
           )}
         </section>
-
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION */}
       <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
         <Link to="/dashboard" className="p-2 text-gray-600"><Home size={22} /></Link>
         <Link to="/chat" className="p-2 text-gray-600"><MessageSquare size={22} /></Link>

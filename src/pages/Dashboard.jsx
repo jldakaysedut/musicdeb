@@ -39,20 +39,16 @@ export default function Dashboard() {
           cover_image: t.artworkUrl100?.replace('100x100bb', '600x600bb')
         })))
       }
-    } catch (err) { console.error("Search error:", err) }
+    } catch (err) { console.error(err) }
     setLoading(false)
   }
 
-  const handleDownloadAction = async (e, track) => {
+  const handleDownload = async (e, track) => {
     e.stopPropagation()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    
-    // Update score in DB
     const { data: profile } = await supabase.from('profiles').select('download_count').eq('id', user.id).single()
     await supabase.from('profiles').update({ download_count: (profile?.download_count || 0) + 1 }).eq('id', user.id)
-    
-    // Trigger the actual file download
     window.open(track.download_url, '_blank')
   }
 
@@ -71,58 +67,51 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans pb-44 selection:bg-orange-500">
-      <header className="max-w-6xl mx-auto p-6 flex justify-between items-center sticky top-0 bg-black/80 backdrop-blur-xl z-50 border-b border-white/5">
-        <div className="flex items-center gap-2">
-          <Disc3 size={24} className="text-orange-500 animate-spin-slow" />
-          <h1 className="text-xl font-black italic tracking-tighter uppercase">JAMLIST</h1>
-        </div>
-        <div className="flex gap-4">
-           <Link to="/leaderboard" className="p-2 hover:text-orange-500 transition-colors"><Trophy size={20} /></Link>
-           <Link to="/profile" className="p-2 hover:text-orange-500 transition-colors"><User size={20} /></Link>
-        </div>
+    <div className="min-h-screen bg-[#050505] text-white pb-44">
+      <header className="max-w-6xl mx-auto p-6 flex justify-between items-center sticky top-0 bg-black/80 backdrop-blur-md z-50 border-b border-white/5">
+        <h1 className="text-xl font-black italic tracking-tighter flex items-center gap-2">
+          <Disc3 size={24} className="text-orange-500 animate-spin-slow" /> JAMLIST
+        </h1>
+        <button onClick={() => supabase.auth.signOut().then(() => navigate('/login'))} className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"><LogOut size={20} /></button>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 mt-10">
-        <form onSubmit={(e) => { e.preventDefault(); fetchMusic(searchQuery) }} className="mb-10 relative flex gap-2">
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" />
-            <input type="text" placeholder="Search mainstream hits..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+      <main className="max-w-4xl mx-auto px-6 mt-8">
+        <form onSubmit={(e) => { e.preventDefault(); fetchMusic(searchQuery) }} className="mb-8 flex gap-2">
+          <div className="relative flex-1 group">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-orange-500" />
+            <input type="text" placeholder="Search vibes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-4 bg-white/5 rounded-2xl border border-white/10 focus:border-orange-500 outline-none font-bold" />
           </div>
-          <button type="submit" className="px-6 bg-orange-500 text-black font-black uppercase rounded-2xl hover:bg-orange-400 transition-all">Find</button>
+          <button type="submit" className="px-6 bg-orange-500 text-black font-black uppercase rounded-2xl hover:bg-orange-400">Search</button>
         </form>
 
-        <div className="space-y-3">
-          {loading ? <div className="text-center py-20 animate-pulse text-gray-500 font-black uppercase tracking-widest">Searching Network...</div> : 
-            tracks.map((item, index) => {
-              const isPlayingThis = currentTrack?.file_url === item.file_url
-              return (
-                <div key={item.id} onClick={() => playTrack(index, tracks)} 
-                  className={`p-3 rounded-2xl flex items-center justify-between border transition-all cursor-pointer group ${isPlayingThis ? 'bg-orange-500/10 border-orange-500/30' : 'bg-[#0A0A0A] border-white/5 hover:border-white/10'}`}>
-                  <div className="flex items-center gap-4 truncate">
-                    <img src={item.cover_image} className="w-12 h-12 rounded-xl object-cover" />
-                    <div className="truncate text-left">
-                      <h4 className={`text-sm font-black uppercase italic truncate ${isPlayingThis ? 'text-orange-500' : 'text-white'}`}>{item.title}</h4>
-                      <p className="text-[10px] font-bold text-gray-500 uppercase">{item.artist}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={(e) => handleLike(e, item)} className="p-3"><Heart size={18} className={savedTracks.some(st => st.track_id === item.id) ? "text-orange-500 fill-orange-500" : "text-gray-600"} /></button>
-                    <button onClick={(e) => handleDownloadAction(e, item)} className="p-3 text-gray-600 hover:text-white"><Download size={18} /></button>
+        <div className="space-y-3 text-left">
+          {loading ? <div className="text-center py-20 animate-pulse text-gray-600 font-black uppercase tracking-widest">Searching...</div> : 
+            tracks.map((item, index) => (
+              <div key={item.id} onClick={() => playTrack(index, tracks)} className="p-3 bg-[#0A0A0A] rounded-2xl flex items-center justify-between border border-white/5 hover:border-white/10 group cursor-pointer transition-all">
+                <div className="flex items-center gap-4 truncate">
+                  <img src={item.cover_image} className="w-12 h-12 rounded-xl object-cover" />
+                  <div className="truncate">
+                    <h4 className={`text-sm font-black uppercase italic truncate ${currentTrack?.file_url === item.file_url ? 'text-orange-500' : ''}`}>{item.title}</h4>
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">{item.artist}</p>
                   </div>
                 </div>
-              )
-            })
+                <div className="flex gap-1">
+                  <button onClick={(e) => handleLike(e, item)} className="p-3 bg-white/5 rounded-xl"><Heart size={18} className={savedTracks.some(st => st.track_id === item.id) ? "text-orange-500 fill-orange-500" : "text-gray-600"} /></button>
+                  <button onClick={(e) => handleDownload(e, item)} className="p-3 bg-white/5 rounded-xl text-gray-600 hover:text-white"><Download size={18} /></button>
+                </div>
+              </div>
+            ))
           }
         </div>
       </main>
 
-      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 flex justify-around shadow-2xl">
-        <Link to="/dashboard" className="p-2 text-orange-500"><Home size={22} /></Link>
-        <Link to="/chat" className="p-2 text-gray-700"><MessageSquare size={22} /></Link>
-        <Link to="/leaderboard" className="p-2 text-gray-700"><Trophy size={22} /></Link>
-        <Link to="/profile" className="p-2 text-gray-700"><User size={22} /></Link>
+      {/* FIXED NAV BAR WITH CHAT */}
+      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[400px] z-50 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-4 flex justify-around shadow-2xl items-center">
+        <Link to="/dashboard" className="p-2 text-orange-500"><Home size={24} /></Link>
+        <Link to="/chat" className="p-2 text-gray-600 hover:text-white"><MessageSquare size={24} /></Link>
+        <Link to="/leaderboard" className="p-2 text-gray-600 hover:text-white"><Trophy size={24} /></Link>
+        <Link to="/profile" className="p-2 text-gray-600 hover:text-white"><User size={24} /></Link>
       </nav>
     </div>
   )

@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { AudioProvider } from './context/AudioContext'
+import GlobalPlayer from './components/GlobalPlayer'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -10,26 +12,26 @@ import Admin from './pages/Admin'
 
 function App() {
   return (
-    <div className="page-transition">
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+    <AudioProvider>
+      <div className="page-transition">
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
-        {/* Protected/App Routes */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/chat" element={<Chat />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/admin" element={<Admin />} />
+
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
         
-        {/* Admin Headquarters */}
-        <Route path="/admin" element={<Admin />} />
-
-        {/* Catch-all: Redirect to Landing */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </div>
+        {/* This makes the player float above ALL pages! */}
+        <GlobalPlayer />
+      </div>
+    </AudioProvider>
   )
 }
 

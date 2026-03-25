@@ -38,18 +38,46 @@ export default function Admin() {
     setLoading(false)
   }
 
+  // --- ACTION: INSTANT APPROVE ---
   const handleApprove = async (id) => {
-    const { error } = await supabase.from('tracks').update({ status: 'approved' }).eq('id', id)
-    if (!error) fetchPendingTracks() 
+    // Optimistic Update: Remove from UI immediately
+    setPendingTracks(prev => prev.filter(t => t.id !== id))
+
+    const { error } = await supabase
+      .from('tracks')
+      .update({ status: 'approved' })
+      .eq('id', id)
+    
+    if (error) {
+      console.error("Approve failed:", error.message)
+      fetchPendingTracks() // Re-fetch only if it fails
+    }
   }
 
+  // --- ACTION: INSTANT PURGE (DB + STORAGE) ---
   const handleReject = async (id, fileUrl) => {
-    if (!window.confirm("Permanent Action: Reject and purge this track?")) return
-    const { error } = await supabase.from('tracks').delete().eq('id', id)
-    if (!error) {
+    if (!window.confirm("Permanent Action: Reject and purge this track from the vault?")) return
+    
+    // Optimistic Update: Remove from UI immediately
+    setPendingTracks(prev => prev.filter(t => t.id !== id))
+
+    try {
+      // 1. Delete from Database
+      const { error: dbError } = await supabase.from('tracks').delete().eq('id', id)
+      if (dbError) throw dbError
+
+      // 2. Extract Filename and Delete from Storage
+      // Supabase URLs usually end in /bucket_name/filename.mp3
       const fileName = fileUrl.split('/').pop()
-      await supabase.storage.from('music-bucket').remove([fileName])
-      fetchPendingTracks()
+      const { error: storageError } = await supabase.storage
+        .from('music-bucket')
+        .remove([fileName])
+
+      if (storageError) console.warn("Storage cleanup failed, but DB record is gone.")
+
+    } catch (error) {
+      console.error("Purge failed:", error.message)
+      fetchPendingTracks() // Re-fetch only if it fails
     }
   }
 
@@ -85,24 +113,24 @@ export default function Admin() {
             </div>
             <div>
               <h1 className="text-4xl font-black tracking-tightest uppercase italic">Admin <span className="text-orange-500">HQ</span></h1>
-              <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mt-1">Review and moderate user uploads.</p>
+              <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mt-1 italic">Reviewing User Submissions</p>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
-            <Link to="/dashboard" className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
-              <ArrowLeft size={14} /> Music Vault
+            <Link to="/dashboard" className="px-5 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:text-orange-500 transition-all flex items-center gap-2">
+              <ArrowLeft size={16} /> Exit to Vault
             </Link>
-            <button onClick={handleLogout} className="px-5 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
+            <button onClick={handleLogout} className="px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
               Logoff
             </button>
           </div>
         </header>
 
         {/* Pending Queue Stats */}
-        <div className="flex items-center justify-between mb-6 px-2">
-          <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Incoming Submission Queue</span>
-          <span className="text-[10px] font-black bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full border border-orange-500/20 tracking-widest">
+        <div className="flex items-center justify-between mb-8 px-2">
+          <span className="text-[10px] font-black text-gray-700 uppercase tracking-[0.3em]">Incoming Frequency Queue</span>
+          <span className="text-[10px] font-black bg-orange-500/10 text-orange-500 px-4 py-2 rounded-full border border-orange-500/20 tracking-widest">
             {pendingTracks.length} PENDING
           </span>
         </div>
@@ -111,23 +139,23 @@ export default function Admin() {
         {pendingTracks.length === 0 ? (
           <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">
             <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Check size={32} className="text-gray-700" />
+              <Check size={32} className="text-gray-800" />
             </div>
-            <h3 className="text-xl font-black uppercase tracking-tighter">Queue Empty</h3>
-            <p className="text-gray-500 font-bold text-sm">All user submissions have been processed.</p>
+            <h3 className="text-xl font-black uppercase tracking-tighter">Vault is Clear</h3>
+            <p className="text-gray-600 font-bold text-xs uppercase tracking-widest">All transmissions have been processed.</p>
           </div>
         ) : (
           <div className="space-y-4">
             {pendingTracks.map((track) => (
-              <div key={track.id} className="p-5 bg-white/[0.03] rounded-[2rem] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all hover:border-white/10 shadow-xl group">
+              <div key={track.id} className="p-6 bg-[#0A0A0A] rounded-[2rem] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all hover:border-orange-500/20 shadow-2xl group">
                 
                 <div className="flex items-center gap-5 w-full md:w-auto overflow-hidden">
-                  <button onClick={() => togglePlay(track.id)} className={`w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center transition-all border ${playingId === track.id ? 'bg-orange-500 text-black border-orange-500' : 'bg-[#111] text-gray-600 border-white/10 hover:border-orange-500/50'}`}>
+                  <button onClick={() => togglePlay(track.id)} className={`w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center transition-all border ${playingId === track.id ? 'bg-orange-500 text-black border-orange-500 shadow-lg shadow-orange-500/20' : 'bg-[#111] text-gray-600 border-white/10 hover:border-orange-500/50'}`}>
                     {playingId === track.id ? <Pause size={24} fill="currentColor" /> : <Play size={24} className="ml-1" fill="currentColor" />}
                   </button>
                   <div className="overflow-hidden">
-                    <h3 className="font-black text-lg text-white truncate leading-tight uppercase tracking-tight">{track.title}</h3>
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mt-1">{track.artist}</p>
+                    <h3 className="font-black text-lg text-white truncate leading-tight uppercase tracking-tight italic">{track.title}</h3>
+                    <p className="text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em] mt-1">{track.artist}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <User size={12} className="text-orange-500" />
                       <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">@{track.profiles?.username}</span>
@@ -135,11 +163,11 @@ export default function Admin() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 pt-4 md:pt-0 border-t border-white/5 md:border-0">
-                  <button onClick={() => handleApprove(track.id)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-orange-500 text-black font-black text-xs rounded-xl hover:bg-orange-400 transition-all shadow-lg active:scale-95 uppercase tracking-widest">
+                <div className="flex items-center gap-3 shrink-0 pt-4 md:pt-0 border-t border-white/5 md:border-0">
+                  <button onClick={() => handleApprove(track.id)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-black font-black text-[10px] rounded-xl hover:bg-orange-400 transition-all shadow-lg active:scale-95 uppercase tracking-widest">
                     <Check size={16} strokeWidth={4} /> Approve
                   </button>
-                  <button onClick={() => handleReject(track.id, track.file_url)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white/5 text-red-500 border border-red-500/20 font-black text-xs rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95 uppercase tracking-widest">
+                  <button onClick={() => handleReject(track.id, track.file_url)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-white/5 text-red-500 border border-red-500/20 font-black text-[10px] rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95 uppercase tracking-widest">
                     <X size={16} strokeWidth={4} /> Purge
                   </button>
                 </div>

@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
 import { 
-  Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, 
-  LogOut, Trash2, Heart, MoreVertical, Plus, X, Radio, 
-  Disc3, Music, User, Trophy, MessageSquare, Home, Search
+  Play, Pause, SkipForward, SkipBack, 
+  LogOut, Plus, X, Radio, 
+  Disc3, Music, User, Trophy, MessageSquare, Home
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -62,6 +62,12 @@ export default function Dashboard() {
     setFetchingRadio(false)
   }
 
+  // --- LOGOUT LOGIC ---
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (!error) navigate('/login')
+  }
+
   const handleUpload = async (e) => {
     e.preventDefault()
     if (!file) return alert("Select a file to share your sound.")
@@ -81,7 +87,6 @@ export default function Dashboard() {
     setUploading(false)
   }
 
-  // --- PLAYER LOGIC (FIXED) ---
   const togglePlayPause = () => {
     if (!audioRef.current) return
     isPlaying ? audioRef.current.pause() : audioRef.current.play()
@@ -100,7 +105,6 @@ export default function Dashboard() {
   const currentTrackArray = activeList === 'tracks' ? tracks : radios
   const currentTrack = currentTrackIndex !== null ? currentTrackArray[currentTrackIndex] : null
 
-  // --- THE MISSING FUNCTIONS THAT CAUSED THE ERROR ---
   const handleNext = () => {
     if (currentTrackIndex === null || currentTrackArray.length === 0) return
     const nextIndex = (currentTrackIndex + 1) % currentTrackArray.length
@@ -118,7 +122,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans pb-44 overflow-x-hidden selection:bg-orange-500">
       
-      {/* 1. TOP HEADER */}
+      {/* 1. TOP HEADER (Added Logout Button) */}
       <header className="max-w-5xl mx-auto p-6 flex justify-between items-center animate-in fade-in slide-in-from-top-4 duration-700">
         <div>
           <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">{greeting}</p>
@@ -127,10 +131,14 @@ export default function Dashboard() {
             JAMLIST
           </h1>
         </div>
-        <div className="hidden md:flex items-center gap-3">
-           <Link to="/leaderboard" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/5 hover:border-orange-500/50 transition-colors"><Trophy size={18} /></Link>
-           <Link to="/chat" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/5 hover:border-orange-500/50 transition-colors"><MessageSquare size={18} /></Link>
-           <Link to="/profile" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/5 hover:border-orange-500/50 transition-colors"><User size={18} /></Link>
+        <div className="flex items-center gap-3">
+           <Link to="/leaderboard" className="hidden md:flex w-10 h-10 bg-white/5 rounded-xl items-center justify-center border border-white/5 hover:border-orange-500/50 transition-colors"><Trophy size={18} /></Link>
+           <Link to="/profile" className="hidden md:flex w-10 h-10 bg-white/5 rounded-xl items-center justify-center border border-white/5 hover:border-orange-500/50 transition-colors"><User size={18} /></Link>
+           
+           {/* LOGOUT BUTTON */}
+           <button onClick={handleLogout} className="w-10 h-10 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center border border-red-500/20 hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-90">
+             <LogOut size={18} strokeWidth={3} />
+           </button>
         </div>
       </header>
 
@@ -177,7 +185,7 @@ export default function Dashboard() {
             {displayedItems.length === 0 ? (
               <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-white/5 border-dashed">
                 <Disc3 size={32} className="mx-auto text-gray-900 mb-4" />
-                <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">The vault is currently empty.</p>
+                <p className="text-gray-600 font-black text-[10px] uppercase tracking-widest">Vault Empty.</p>
               </div>
             ) : (
               displayedItems.map((item, index) => {
@@ -195,7 +203,6 @@ export default function Dashboard() {
                         <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">{item.artist}</p>
                       </div>
                     </div>
-                    {item.status === 'pending' && <span className="text-[8px] font-black bg-orange-500/10 text-orange-500 px-2 py-1 rounded-lg uppercase tracking-widest border border-orange-500/20">Pending</span>}
                   </div>
                 )
               })
@@ -215,8 +222,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black/95 backdrop-blur-3xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-sm p-8 rounded-[2.5rem] relative shadow-2xl">
             <button onClick={() => setShowUpload(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
-            <h2 className="text-2xl font-black mb-2 tracking-tighter italic uppercase">Share Your <span className="text-orange-500">Sound.</span></h2>
-            <p className="text-[9px] font-black text-gray-600 mb-8 uppercase tracking-[0.3em]">Your contribution helps the community grow.</p>
+            <h2 className="text-2xl font-black mb-2 tracking-tighter italic uppercase">Upload to <span className="text-orange-500">Vault.</span></h2>
             <form onSubmit={handleUpload} className="space-y-4">
               <input type="text" placeholder="Song Title" required value={title} onChange={(e) => setTitle(e.target.value)} className="w-full p-4 bg-white/5 rounded-2xl border border-white/5 focus:border-orange-500 outline-none text-sm font-bold placeholder-gray-800" />
               <input type="text" placeholder="Artist Name" required value={artist} onChange={(e) => setArtist(e.target.value)} className="w-full p-4 bg-white/5 rounded-2xl border border-white/5 focus:border-orange-500 outline-none text-sm font-bold placeholder-gray-800" />
@@ -226,14 +232,14 @@ export default function Dashboard() {
                 <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{file ? file.name : "Select MP3 Vault File"}</p>
               </div>
               <button type="submit" disabled={uploading} className="w-full py-5 bg-orange-500 text-black font-black rounded-2xl hover:bg-orange-400 disabled:opacity-50 transition-all shadow-lg text-sm uppercase tracking-widest">
-                {uploading ? 'SYNCING...' : 'UPLOAD TO VAULT'}
+                {uploading ? 'SYNCING...' : 'CONFIRM UPLOAD'}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* 7. PREMIUM BOTTOM PLAYER (FIXED) */}
+      {/* 7. PREMIUM BOTTOM PLAYER */}
       {currentTrack && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-[94%] max-w-2xl bg-black/80 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-5 shadow-2xl z-40 animate-in slide-in-from-bottom-10">
           <div className="w-full h-1 bg-white/5 rounded-full mb-5 overflow-hidden">
@@ -262,7 +268,7 @@ export default function Dashboard() {
       )}
 
       {/* 8. MOBILE BOTTOM NAVIGATION */}
-      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
+      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
         <Link to="/dashboard" className="p-2 text-orange-500"><Home size={22} /></Link>
         <Link to="/chat" className="p-2 text-gray-700"><MessageSquare size={22} /></Link>
         <Link to="/leaderboard" className="p-2 text-gray-700"><Trophy size={22} /></Link>

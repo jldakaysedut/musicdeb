@@ -4,44 +4,24 @@ import { Link } from 'react-router-dom'
 import { useAudio } from '../context/AudioContext' 
 import { 
   Play, Pause, Search, Heart, Radio, Home, MessageSquare, 
-  Trophy, User, Mic2, Podcast, Globe, Disc3, Loader2, 
-  Wifi, Signal, Zap, Headphones, ChevronRight 
+  Trophy, User, Disc3, Loader2, Wifi, Signal, Zap, 
+  Headphones, ChevronLeft, Globe, Sparkles, Activity
 } from 'lucide-react'
 
-// 🎙️ VERIFIED BROADCAST STATIONS (These will ALWAYS work)
+// 📻 ON-AIR ORIGINALS (Verified Live Streams)
 const VERIFIED_STATIONS = [
-  { 
-    id: "v1", 
-    title: "Global OPM Radio", 
-    artist: "Pinoy Hits Live", 
-    file_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", 
-    cover_image: "https://i.scdn.co/image/ab67706f0000000349646c057b54546410cc04f5", 
-    genre: "Live Radio" 
-  },
-  { 
-    id: "v2", 
-    title: "The Tech Daily", 
-    artist: "Future Broadcast", 
-    file_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", 
-    cover_image: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?q=80&w=300&auto=format&fit=crop", 
-    genre: "Podcast" 
-  },
-  { 
-    id: "v3", 
-    title: "Midnight Mystery", 
-    artist: "Storyteller FM", 
-    file_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", 
-    cover_image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=300&auto=format&fit=crop", 
-    genre: "Stories" 
-  }
+  { id: "live-1", title: "BBC World Service", artist: "Live News • London", file_url: "https://stream.live.vc.bbc.co.uk/bbc_world_service_mp3", cover_image: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/BBC_World_Service.svg/1200px-BBC_World_Service.svg.png", genre: "News" },
+  { id: "live-2", title: "NPR Program Stream", artist: "Public Radio • USA", file_url: "https://npr-ice.streamguys1.com/live.mp3", cover_image: "https://media.npr.org/assets/img/2018/08/03/npr_logo_sq-97000d0061e3d096d85a06950285b0d879435b89.jpg", genre: "Talk" },
+  { id: "live-3", title: "Jazz FM Global", artist: "Live Jazz • Digital", file_url: "https://pureplay.cdnstream1.com/6022_128.mp3", cover_image: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?q=80&w=300&auto=format&fit=crop", genre: "Jazz" },
+  { id: "live-4", title: "Dance Wave", artist: "Electronic • Hungary", file_url: "https://dancewave.online/dance.mp3", cover_image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=300&auto=format&fit=crop", genre: "Dance" }
 ]
 
 const CATEGORIES = [
-  { label: "Verified", query: "verified" },
-  { label: "OPM Radio", query: "Tagalog Podcast" },
-  { label: "True Crime", query: "True Crime" },
-  { label: "Comedy", query: "Comedy Podcast" },
-  { label: "Tech News", query: "Technology" }
+  { label: "Verified", query: "" },
+  { label: "Manila FM", query: "Philippines" },
+  { label: "Top Global", query: "Top" },
+  { label: "News Live", query: "News" },
+  { label: "Jazz & Chill", query: "Jazz" }
 ]
 
 export default function RadioHub() {
@@ -51,117 +31,123 @@ export default function RadioHub() {
   const [tuningId, setTuningId] = useState(null)
   const [activeTab, setActiveTab] = useState("Verified")
   
-  const { currentTrack, isPlaying, playTrack } = useAudio()
+  const { currentTrack, isPlaying, playTrack, togglePlay } = useAudio()
 
   useEffect(() => {
-    if (activeTab !== "Verified") {
-      fetchBroadcasts(activeTab)
-    } else {
+    if (activeTab === "Verified") {
       setStations(VERIFIED_STATIONS)
+    } else {
+      const selected = CATEGORIES.find(c => c.label === activeTab)
+      fetchLiveRadios(selected.query)
     }
   }, [activeTab])
 
-  const fetchBroadcasts = async (query) => {
+  const fetchLiveRadios = async (query) => {
     setLoading(true)
     try {
-      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=podcast&limit=20`)
-      const json = await res.json()
-      if (json.results) {
-        const apiStations = json.results.map(s => ({
-          id: s.trackId.toString(),
-          title: s.trackName,
-          artist: s.artistName,
-          file_url: s.collectionViewUrl, // Search for preview links
-          cover_image: s.artworkUrl600 || s.artworkUrl100,
-          genre: s.primaryGenreName
-        }))
-        setStations(activeTab === "Verified" ? VERIFIED_STATIONS : apiStations)
+      // 📡 Connecting to the Global Radio Browser API for LIVE stations
+      const res = await fetch(`https://de1.api.radio-browser.info/json/stations/byname/${encodeURIComponent(query)}?limit=30`)
+      const data = await res.json()
+      
+      if (data) {
+        const liveStations = data.map(s => ({
+          id: s.stationuuid,
+          title: s.name.trim(),
+          artist: s.country || "Global Stream",
+          file_url: s.url_resolved || s.url, 
+          cover_image: s.favicon || "https://images.unsplash.com/photo-1485579149621-3123dd979885?q=80&w=300&auto=format&fit=crop",
+          genre: s.tags?.split(',')[0] || "Live"
+        })).filter(s => s.file_url && s.file_url.includes('http'))
+        
+        setStations(liveStations.length > 0 ? liveStations : VERIFIED_STATIONS)
       }
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      setStations(VERIFIED_STATIONS) 
+    }
     setLoading(false)
   }
 
   const handleTune = (index) => {
     const target = stations[index]
+    if (currentTrack?.id === target.id) {
+        togglePlay()
+        return
+    }
     setTuningId(target.id)
-    
-    // 📡 Simulated "Frequency Tuning" effect
     setTimeout(() => {
       playTrack(index, stations)
       setTuningId(null)
-    }, 1200)
+    }, 1000) // Simulated signal lock
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white pb-60 selection:bg-orange-500/30">
+    <div className="min-h-screen bg-[#050505] text-white selection:bg-orange-500/30 font-sans antialiased pb-60">
       
-      {/* 📡 BROADCAST HEADER */}
-      <header className="max-w-4xl mx-auto p-12 pt-24 text-center relative">
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-40 h-40 bg-orange-500/10 blur-[100px] -z-10"></div>
+      {/* 🔝 LIVE SCANNER HEADER */}
+      <header className="px-8 pt-16 pb-12 flex flex-col items-center relative">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-orange-500/5 blur-[120px] -z-10"></div>
         
-        <div className="relative inline-block mb-8">
-          <div className="w-24 h-24 bg-orange-500 rounded-[2.2rem] flex items-center justify-center shadow-[0_0_50px_rgba(249,115,22,0.3)]">
-            <Radio size={44} className="text-black" />
+        <div className="relative mb-8">
+          <div className="w-20 h-20 bg-orange-500 rounded-[2.5rem] flex items-center justify-center shadow-[0_20px_50px_rgba(249,115,22,0.3)] transition-transform active:scale-90">
+            <Radio size={40} className="text-black" />
           </div>
-          <div className="absolute -top-2 -right-4 bg-red-600 px-3 py-1 rounded-full border-[4px] border-[#050505] flex items-center gap-1.5">
-            <span className="w-2 h-2 bg-white rounded-full animate-ping"></span>
-            <span className="text-[9px] font-black uppercase tracking-tighter italic">Live</span>
+          <div className="absolute -top-2 -right-2 bg-red-600 px-3 py-1 rounded-full border-[4px] border-[#050505] flex items-center gap-1.5 shadow-2xl">
+            <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+            <span className="text-[8px] font-black uppercase tracking-tighter italic">Live</span>
           </div>
         </div>
 
-        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter mb-4">
-          Airwave <span className="text-orange-500">Scanner</span>
-        </h1>
-        <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.5em] flex items-center justify-center gap-2">
-           <Signal size={12} className="text-orange-500"/> Frequency: 102.6 CPS-FM
+        <h1 className="text-4xl font-black italic uppercase tracking-tighter mb-2">Live <span className="text-orange-500">Scanner</span></h1>
+        <p className="text-gray-600 text-[10px] font-black uppercase tracking-[0.5em] flex items-center gap-2">
+           <Signal size={12} className="text-orange-500"/> Station Sync: Online
         </p>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6">
-        {/* 🔍 SEARCH & SCAN */}
-        <form onSubmit={(e) => { e.preventDefault(); fetchBroadcasts(searchQuery); }} className="mb-12 flex gap-3">
+      <main className="px-7">
+        {/* 🔍 GLOBAL FREQUENCY SEARCH */}
+        <form onSubmit={(e) => { e.preventDefault(); fetchLiveRadios(searchQuery); }} className="mb-12 flex gap-2">
           <div className="relative flex-1 group">
-            <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-700 group-focus-within:text-orange-500 transition-colors" />
+            <Search size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-700 group-focus-within:text-orange-500 transition-colors" />
             <input 
               type="text" 
-              placeholder="Scan Station or Podcast..." 
+              placeholder="Enter City or Station Name..." 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-16 pr-6 py-5 bg-[#0A0A0A] rounded-[2.5rem] border border-white/5 focus:border-orange-500/40 outline-none font-bold text-sm shadow-2xl transition-all" 
+              className="w-full pl-16 pr-6 py-5 bg-[#0A0A0A] rounded-[2rem] border border-white/5 outline-none focus:border-orange-500/30 text-[13px] font-bold shadow-2xl transition-all" 
             />
           </div>
-          <button type="submit" className="px-10 bg-orange-500 text-black font-black uppercase italic rounded-[2.5rem] hover:bg-orange-400 active:scale-95 transition-all">
+          <button type="submit" className="px-8 bg-white text-black font-black uppercase italic tracking-widest text-[10px] rounded-[2rem] active:scale-95 transition-all shadow-xl shadow-white/5">
             Scan
           </button>
         </form>
 
-        {/* 📟 CATEGORY DIAL */}
+        {/* 📟 TAB SELECTOR */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-12 pb-2">
           {CATEGORIES.map(cat => (
             <button 
               key={cat.label} 
               onClick={() => setActiveTab(cat.label)}
-              className={`px-6 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all border flex items-center gap-2
+              className={`px-7 py-4 rounded-full font-black text-[9px] uppercase tracking-[0.2em] transition-all border whitespace-nowrap
               ${activeTab === cat.label ? 'bg-orange-500 text-black border-orange-500 shadow-lg shadow-orange-500/20' : 'bg-white/5 text-gray-500 border-white/5 hover:bg-white/10'}`}
             >
-              {cat.label === "Verified" && <Zap size={14}/>}
               {cat.label}
             </button>
           ))}
         </div>
 
-        {/* 📻 STATION LIST */}
+        {/* 📻 LIVE FEED */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between px-4 mb-6">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-600 flex items-center gap-3">
-              <Headphones size={14} className="text-orange-500"/> Found Frequencies
-            </h3>
+          <div className="flex items-center gap-3 px-2 mb-8 opacity-40">
+            <Activity size={14} className="text-orange-500" />
+            <p className="text-[10px] font-black uppercase tracking-[0.6em] whitespace-nowrap">Detected Signals</p>
+            <div className="h-[1px] flex-1 bg-white"></div>
           </div>
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-24 opacity-30">
+            <div className="flex flex-col items-center justify-center py-24 opacity-20">
               <Disc3 size={48} className="text-orange-500 animate-spin mb-4" />
-              <p className="text-[10px] font-black uppercase tracking-[0.5em]">Tuning Dial...</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.5em]">Fetching Airwaves...</p>
             </div>
           ) : (
             stations.map((s, i) => {
@@ -172,33 +158,37 @@ export default function RadioHub() {
                 <div 
                   key={s.id} 
                   onClick={() => handleTune(i)} 
-                  className={`p-5 bg-[#0A0A0A] rounded-[2.8rem] flex items-center justify-between border transition-all cursor-pointer group
-                  ${isActive ? 'border-orange-500/50 bg-orange-500/10 shadow-[0_15px_40px_rgba(249,115,22,0.1)]' : 'border-white/5 hover:border-white/10'}`}
+                  className={`p-5 bg-[#0A0A0A] rounded-[2.5rem] border flex items-center justify-between transition-all cursor-pointer group active:scale-[0.98]
+                  ${isActive ? 'border-orange-500/50 bg-orange-500/5 shadow-[0_20px_50px_rgba(249,115,22,0.1)]' : 'border-white/5 hover:border-white/10'}`}
                 >
-                  <div className="flex items-center gap-6 truncate text-left">
-                    <div className="relative w-16 h-16 rounded-[1.8rem] bg-black overflow-hidden shrink-0 shadow-2xl border border-white/5">
-                      <img src={s.cover_image} className={`w-full h-full object-cover transition-transform duration-700 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-5 truncate text-left min-w-0">
+                    <div className="relative w-14 h-14 rounded-2xl bg-black overflow-hidden shrink-0 border border-white/5 shadow-2xl group-hover:scale-105 transition-transform">
+                      <img 
+                        src={s.cover_image} 
+                        className={`w-full h-full object-cover transition-opacity duration-700 ${isActive ? 'opacity-100' : 'opacity-60'}`} 
+                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1485579149621-3123dd979885?q=80&w=300&auto=format&fit=crop" }}
+                      />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                          {isTuning ? <Loader2 className="text-orange-500 animate-spin" /> : (isActive && isPlaying ? <Pause className="text-orange-500 fill-orange-500" /> : <Play className="text-white fill-white" />)}
                       </div>
                     </div>
                     
                     <div className="truncate">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[8px] font-black bg-white/5 text-gray-400 px-2 py-0.5 rounded uppercase border border-white/5">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[8px] font-black bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-full border border-orange-500/20">
                           {s.genre}
                         </span>
                         {isActive && isPlaying && <Wifi size={10} className="text-orange-500 animate-pulse" />}
                       </div>
-                      <h4 className={`text-base font-black uppercase italic truncate tracking-tight ${isActive ? 'text-orange-500' : 'text-white'}`}>
+                      <h4 className={`text-[15px] font-black uppercase italic truncate tracking-tight ${isActive ? 'text-orange-500' : 'text-white'}`}>
                         {s.title}
                       </h4>
-                      <p className="text-[10px] text-gray-500 uppercase font-bold mt-1 tracking-widest">{s.artist}</p>
+                      <p className="text-[10px] text-gray-700 font-bold uppercase mt-1 tracking-wider">{s.artist}</p>
                     </div>
                   </div>
 
-                  <div className={`p-4 rounded-2xl transition-all ${isActive ? 'bg-orange-500 text-black' : 'bg-white/5 text-gray-700 hover:text-white'}`}>
-                    {isTuning ? <Loader2 size={20} className="animate-spin" /> : (isActive && isPlaying ? <Pause size={20} /> : <Play size={20} />)}
+                  <div className={`p-4 rounded-[1.2rem] transition-all shadow-inner shrink-0 ${isActive ? 'bg-orange-500 text-black' : 'bg-white/5 text-gray-800 group-hover:text-white'}`}>
+                    {isTuning ? <Loader2 size={18} className="animate-spin" /> : (isActive && isPlaying ? <Pause size={18} /> : <Play size={18} />)}
                   </div>
                 </div>
               )
@@ -208,17 +198,16 @@ export default function RadioHub() {
       </main>
 
       {/* 🧭 NAVIGATION */}
-      <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] md:w-[420px] z-50 bg-[#0A0A0A]/95 backdrop-blur-3xl border border-white/10 rounded-[2.8rem] px-8 py-4 flex justify-between shadow-2xl items-center ring-1 ring-white/10">
-        <Link to="/dashboard" className="p-2 text-gray-500 hover:text-orange-400 transition-all"><Home size={24} /></Link>
-        <Link to="/chat" className="p-2 text-gray-500 hover:text-orange-400 transition-all"><MessageSquare size={24} /></Link>
+      <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] md:w-[420px] z-50 bg-[#0A0A0A]/90 backdrop-blur-3xl border border-white/10 rounded-[2.8rem] px-8 py-4 flex justify-between shadow-2xl items-center ring-1 ring-white/5">
+        <Link to="/dashboard" className="p-2 text-gray-600 hover:text-orange-400 transition-all"><Home size={24} /></Link>
+        <Link to="/chat" className="p-2 text-gray-600 hover:text-orange-400 transition-all"><MessageSquare size={24} /></Link>
         
-        <Link to="/radio" className="relative group p-5 bg-orange-500 text-black rounded-full -mt-12 border-[6px] border-[#050505] shadow-[0_15px_30px_rgba(249,115,22,0.4)] transition-all">
+        <Link to="/radio" className="relative group p-5 bg-orange-500 text-black rounded-full -mt-12 border-[6px] border-[#050505] shadow-[0_15px_40px_rgba(249,115,22,0.4)] transition-all active:scale-90">
           <Radio size={28} className={isPlaying ? "animate-pulse" : ""} />
-          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_10px_white]"></div>
         </Link>
 
-        <Link to="/leaderboard" className="p-2 text-gray-500 hover:text-orange-400 transition-all"><Trophy size={24} /></Link>
-        <Link to="/profile" className="p-2 text-gray-500 hover:text-orange-400 transition-all"><User size={24} /></Link>
+        <Link to="/leaderboard" className="p-2 text-gray-600 hover:text-orange-400 transition-all"><Trophy size={24} /></Link>
+        <Link to="/profile" className="p-2 text-gray-600 hover:text-orange-400 transition-all"><User size={24} /></Link>
       </nav>
     </div>
   )

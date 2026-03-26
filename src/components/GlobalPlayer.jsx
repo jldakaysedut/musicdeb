@@ -1,67 +1,46 @@
-import { useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAudio } from '../context/AudioContext'
-import { Play, Pause, SkipForward, SkipBack, ListMusic, X, Disc3 } from 'lucide-react'
+import { supabase } from '../supabaseClient'
+import { Play, Pause, SkipBack, SkipForward, Volume2, Disc3 } from 'lucide-react'
 
 export default function GlobalPlayer() {
-  const { currentTrack, isPlaying, togglePlay, playNext, playPrev, queue } = useAudio()
-  const [showQueue, setShowQueue] = useState(false)
+  const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, progress, duration, seek } = useAudio()
+  
+  // ⏱️ HEARTBEAT LOGIC: Update DB every 30 seconds of listening
+  useEffect(() => {
+    let interval;
+    if (isPlaying && currentTrack) {
+      interval = setInterval(async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: prof } = await supabase.from('profiles').select('total_listening_time').eq('id', user.id).single()
+          await supabase.from('profiles')
+            .update({ total_listening_time: (prof?.total_listening_time || 0) + 30 })
+            .eq('id', user.id)
+        }
+      }, 30000); 
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, currentTrack]);
 
-  // Kung walang nag-pe-play na kanta, itago ang radio
-  if (!currentTrack) return null
+  if (!currentTrack) return null;
 
   return (
-    <>
-      {/* 📜 UP NEXT QUEUE PANEL */}
-      {showQueue && (
-        <div className="fixed bottom-[180px] left-1/2 -translate-x-1/2 w-[90%] md:w-[400px] z-40 bg-[#0A0A0A]/95 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-5 shadow-[0_0_50px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom-10">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ListMusic size={14}/> Up Next</h3>
-            <button onClick={() => setShowQueue(false)} className="p-2 text-gray-500 hover:text-white bg-white/5 rounded-full"><X size={14}/></button>
-          </div>
-          <div className="max-h-[200px] overflow-y-auto space-y-2 no-scrollbar">
-            {queue?.map((track, idx) => (
-              <div key={idx} className={`flex items-center gap-3 p-2 rounded-xl ${currentTrack.file_url === track.file_url ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-white/5'}`}>
-                <img src={track.cover_image} className="w-8 h-8 rounded-md object-cover" />
-                <div className="truncate flex-1">
-                  <p className={`text-[10px] font-black uppercase italic truncate ${currentTrack.file_url === track.file_url ? 'text-orange-500' : 'text-white'}`}>{track.title}</p>
-                  <p className="text-[8px] font-bold text-gray-500 uppercase">{track.artist}</p>
-                </div>
-                {currentTrack.file_url === track.file_url && <Disc3 size={12} className="text-orange-500 animate-spin mr-2"/>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 📻 MAIN FLOATING RADIO BAR */}
-      <div className="fixed bottom-[100px] left-1/2 -translate-x-1/2 w-[92%] md:w-[420px] z-50 bg-[#141414]/90 backdrop-blur-2xl border border-orange-500/30 rounded-[2rem] p-3 flex items-center justify-between shadow-[0_0_40px_rgba(249,115,22,0.15)] transition-all">
-        
-        {/* Cover & Info (Clickable para lumabas ang Queue) */}
-        <div className="flex items-center gap-3 truncate flex-1 cursor-pointer" onClick={() => setShowQueue(!showQueue)}>
-          <div className={`w-12 h-12 rounded-full overflow-hidden shrink-0 border-2 border-orange-500/50 ${isPlaying ? 'animate-spin-slow' : ''}`}>
-            <img src={currentTrack.cover_image} className="w-full h-full object-cover" />
-          </div>
-          <div className="truncate text-left">
-            <h4 className="text-[11px] font-black uppercase italic text-white truncate">{currentTrack.title}</h4>
-            <p className="text-[9px] text-orange-500 uppercase font-bold tracking-widest flex items-center gap-1">
-              <Disc3 size={10} className={isPlaying ? 'animate-spin' : ''} /> Now Playing
-            </p>
-          </div>
-        </div>
-
-        {/* Playback Controls */}
-        <div className="flex items-center gap-1 shrink-0 ml-2">
-          {playPrev && (
-            <button onClick={playPrev} className="p-3 text-gray-400 hover:text-white transition-colors active:scale-90"><SkipBack size={18} fill="currentColor" /></button>
-          )}
-          <button onClick={togglePlay} className="p-4 bg-orange-500 text-black rounded-2xl hover:bg-orange-400 transition-all active:scale-95 shadow-lg shadow-orange-500/20">
-            {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
-          </button>
-          {playNext && (
-            <button onClick={playNext} className="p-3 text-gray-400 hover:text-white transition-colors active:scale-90"><SkipForward size={18} fill="currentColor" /></button>
-          )}
-        </div>
+    <div className="fixed bottom-[100px] left-1/2 -translate-x-1/2 w-[94%] md:w-[450px] bg-[#121212]/90 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 z-50 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center gap-4">
+      <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-white/10">
+        <img src={currentTrack.cover_image} className={`w-full h-full object-cover ${isPlaying ? 'animate-pulse' : ''}`} />
       </div>
-    </>
+      <div className="flex-1 truncate">
+        <h4 className="text-[11px] font-black uppercase italic truncate text-orange-500">{currentTrack.title}</h4>
+        <p className="text-[9px] text-gray-500 font-bold uppercase truncate">{currentTrack.artist}</p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <button onClick={prevTrack} className="text-gray-400 hover:text-white transition-colors"><SkipBack size={18}/></button>
+        <button onClick={togglePlay} className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-black hover:scale-105 transition-all">
+          {isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-1"/>}
+        </button>
+        <button onClick={nextTrack} className="text-gray-400 hover:text-white transition-colors"><SkipForward size={18}/></button>
+      </div>
+    </div>
   )
 }

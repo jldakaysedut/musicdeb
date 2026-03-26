@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { AudioProvider } from './context/AudioContext'
 import GlobalPlayer from './components/GlobalPlayer'
 
@@ -15,23 +15,21 @@ import Admin from './pages/Admin'
 function App() {
   return (
     <AudioProvider>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-        
-        {/* 📻 ITO ANG MAGIC: Lilitaw ang Radio sa lahat ng pages! */}
-        <GlobalPlayer />
-        
-      </Router>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/chat" element={<Chat />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+      
+      {/* 📻 THE GLOBAL RADIO: Lilitaw sa lahat ng pages! */}
+      <GlobalPlayer />
+      
     </AudioProvider>
   )
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAudio } from '../context/AudioContext'
-import { User, Heart, Trash2, Home, MessageSquare, Trophy, Play, Pause } from 'lucide-react'
+import { User, Heart, Trash2, Home, MessageSquare, Trophy, Play, Pause, Radio } from 'lucide-react'
 
 export default function Profile() {
   const [profile, setProfile] = useState(null)
@@ -15,9 +15,21 @@ export default function Profile() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { navigate('/login'); return }
       
+      // 1. Kunin ang profile sa database
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-      setProfile(prof)
       
+      // 🔥 THE MAGIC FIX: Bulletproof Username Fetcher
+      // Kung walang username sa table, kunin sa user metadata (Google Auth) o sa mismong email!
+      const realUsername = prof?.username 
+        || user?.user_metadata?.username 
+        || user?.user_metadata?.full_name 
+        || user?.email?.split('@')[0] 
+        || 'Curator'
+
+      // I-save sa state kasama ang na-extract na Real Username
+      setProfile({ ...prof, display_name: realUsername, raw_email: user.email })
+      
+      // 2. Kunin ang Vault Tracks
       const { data: vault } = await supabase.from('saved_tracks').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
       if (vault) setSavedTracks(vault)
     }
@@ -27,6 +39,8 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-[#050505] text-white p-6 pb-44 relative">
       <div className="max-w-2xl mx-auto">
+        
+        {/* HEADER */}
         <header className="flex justify-between items-center mb-10 pt-2">
           <h1 className="text-xl font-black italic uppercase tracking-tighter">My <span className="text-orange-500">Vault</span></h1>
           <button onClick={() => supabase.auth.signOut().then(() => navigate('/login'))} className="text-red-500 font-black text-[10px] uppercase tracking-widest border border-red-500/20 px-4 py-2 rounded-xl bg-red-500/5 hover:bg-red-500 hover:text-white transition-all">
@@ -34,17 +48,29 @@ export default function Profile() {
           </button>
         </header>
 
+        {/* PROFILE CARD */}
         <div className="bg-gradient-to-br from-[#0A0A0A] to-[#121212] p-8 rounded-[2.5rem] border border-white/5 flex flex-col items-center mb-10 shadow-2xl">
-          <div className="w-20 h-20 rounded-full border-2 border-orange-500 bg-orange-500/10 flex items-center justify-center mb-4">
-            {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full rounded-full object-cover" /> : <User size={40} className="text-orange-500" />}
+          <div className="w-20 h-20 rounded-full border-2 border-orange-500 bg-orange-500/10 flex items-center justify-center mb-4 overflow-hidden">
+            {profile?.avatar_url || profile?.avatar_url !== "" ? (
+              <img src={profile.avatar_url} className="w-full h-full object-cover" />
+            ) : (
+              <User size={40} className="text-orange-500" />
+            )}
           </div>
-          {/* 🔥 ACTUAL USERNAME DISPLAYER */}
-          <h2 className="text-2xl font-black italic uppercase">@{profile?.username || 'Curator'}</h2>
+          
+          {/* 🔥 DITO LALABAS ANG REAL USERNAME MO! */}
+          <h2 className="text-2xl font-black italic uppercase">@{profile?.display_name}</h2>
           
           <div className="flex gap-4 mt-4">
-            <div className="text-center"><p className="text-orange-500 font-black text-lg">{savedTracks.length}</p><p className="text-[8px] text-gray-500 uppercase tracking-widest">Hearted</p></div>
+            <div className="text-center">
+              <p className="text-orange-500 font-black text-lg">{savedTracks.length}</p>
+              <p className="text-[8px] text-gray-500 uppercase tracking-widest">Hearted</p>
+            </div>
             <div className="w-[1px] h-8 bg-white/10"></div>
-            <div className="text-center"><p className="text-orange-500 font-black text-lg">{profile?.download_count || 0}</p><p className="text-[8px] text-gray-500 uppercase tracking-widest">Downloads</p></div>
+            <div className="text-center">
+              <p className="text-orange-500 font-black text-lg">{profile?.download_count || 0}</p>
+              <p className="text-[8px] text-gray-500 uppercase tracking-widest">Downloads</p>
+            </div>
           </div>
         </div>
 
@@ -78,11 +104,17 @@ export default function Profile() {
         </div>
       </div>
 
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[400px] z-40 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-4 flex justify-around shadow-2xl items-center">
-        <Link to="/dashboard" className="p-2 text-gray-600 hover:text-white transition-colors"><Home size={24} /></Link>
-        <Link to="/chat" className="p-2 text-gray-600 hover:text-white transition-colors"><MessageSquare size={24} /></Link>
-        <Link to="/leaderboard" className="p-2 text-gray-600 hover:text-white transition-colors"><Trophy size={24} /></Link>
-        <Link to="/profile" className="p-2 text-orange-500"><User size={24} /></Link>
+      {/* 🧭 FIXED BOTTOM NAV WITH CENTER RADIO BUTTON */}
+      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] md:w-[400px] z-50 bg-[#0A0A0A]/90 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] px-6 py-3 flex justify-between shadow-2xl items-center">
+        <Link to="/dashboard" className="p-2 text-gray-500 hover:text-orange-400 transition-colors"><Home size={24} /></Link>
+        <Link to="/chat" className="p-2 text-gray-500 hover:text-orange-400 transition-colors"><MessageSquare size={24} /></Link>
+        
+        <Link to="/dashboard" className="p-4 bg-orange-500 text-black rounded-full -mt-10 border-4 border-[#050505] shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-105 active:scale-95 transition-all">
+          <Radio size={24} />
+        </Link>
+
+        <Link to="/leaderboard" className="p-2 text-gray-500 hover:text-orange-400 transition-colors"><Trophy size={24} /></Link>
+        <Link to="/profile" className="p-2 text-orange-500 transition-colors"><User size={24} /></Link>
       </nav>
     </div>
   )

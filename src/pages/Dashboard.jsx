@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAudio } from '../context/AudioContext' 
-import { Play, Pause, LogOut, Search, Download, Heart, Disc3, User, Trophy, MessageSquare, Home, Flame } from 'lucide-react'
+import { Play, Pause, LogOut, Search, Download, Heart, Disc3, User, Trophy, MessageSquare, Home, Flame, Radio } from 'lucide-react'
 
 const CATEGORIES = ["Trending Hits", "Hev Abi", "OPM Viral", "Al James", "Hip-Hop", "Pop"]
 
@@ -111,7 +111,7 @@ export default function Dashboard() {
         <div className="space-y-3 text-left">
           {loading ? <div className="text-center py-20 animate-pulse text-gray-600 font-black uppercase tracking-widest">Loading Vibes...</div> : 
             tracks.map((item, index) => (
-              <div key={item.id} onClick={() => playTrack(index, tracks)} className="p-3 bg-[#0A0A0A] rounded-2xl flex items-center justify-between border border-white/5 hover:border-white/10 group cursor-pointer transition-all">
+              <div key={item.id} onClick={() => playTrack(index, tracks)} className={`p-3 bg-[#0A0A0A] rounded-2xl flex items-center justify-between border group cursor-pointer transition-all ${currentTrack?.file_url === item.file_url ? 'border-orange-500/30 bg-orange-500/5' : 'border-white/5 hover:border-white/10'}`}>
                 <div className="flex items-center gap-4 truncate">
                   <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-black">
                     <img src={item.cover_image} className="w-full h-full object-cover" />
@@ -120,13 +120,13 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="truncate">
-                    <h4 className={`text-sm font-black uppercase italic truncate ${currentTrack?.file_url === item.file_url ? 'text-orange-500' : ''}`}>{item.title}</h4>
+                    <h4 className={`text-sm font-black uppercase italic truncate ${currentTrack?.file_url === item.file_url ? 'text-orange-500' : 'text-white'}`}>{item.title}</h4>
                     <p className="text-[10px] text-gray-500 uppercase font-bold">{item.artist}</p>
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <button onClick={(e) => handleLike(e, item)} className="p-3 bg-white/5 rounded-xl"><Heart size={18} className={savedTracks.some(st => st.track_id === item.id) ? "text-orange-500 fill-orange-500" : "text-gray-600"} /></button>
-                  <button onClick={(e) => handleDownload(e, item)} className="p-3 bg-white/5 rounded-xl text-gray-600 hover:text-white"><Download size={18} /></button>
+                <div className="flex gap-1 shrink-0">
+                  <button onClick={(e) => handleLike(e, item)} className="p-3 bg-white/5 rounded-xl hover:bg-orange-500/20 transition-all"><Heart size={18} className={savedTracks.some(st => st.track_id === item.id) ? "text-orange-500 fill-orange-500" : "text-gray-600"} /></button>
+                  <button onClick={(e) => handleDownload(e, item)} className="p-3 bg-white/5 rounded-xl text-gray-600 hover:text-white transition-all"><Download size={18} /></button>
                 </div>
               </div>
             ))
@@ -134,11 +134,17 @@ export default function Dashboard() {
         </div>
       </main>
 
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[400px] z-40 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-4 flex justify-around shadow-2xl items-center">
-        <Link to="/dashboard" className="p-2 text-orange-500"><Home size={24} /></Link>
-        <Link to="/chat" className="p-2 text-gray-600 hover:text-white"><MessageSquare size={24} /></Link>
-        <Link to="/leaderboard" className="p-2 text-gray-600 hover:text-white"><Trophy size={24} /></Link>
-        <Link to="/profile" className="p-2 text-gray-600 hover:text-white"><User size={24} /></Link>
+      {/* 🧭 FIXED BOTTOM NAV WITH CENTER RADIO BUTTON */}
+      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] md:w-[400px] z-40 bg-[#0A0A0A]/90 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] px-6 py-3 flex justify-between shadow-2xl items-center">
+        <Link to="/dashboard" className="p-2 text-orange-500 transition-colors"><Home size={24} /></Link>
+        <Link to="/chat" className="p-2 text-gray-500 hover:text-orange-400 transition-colors"><MessageSquare size={24} /></Link>
+        
+        <Link to="/dashboard" className="p-4 bg-orange-500 text-black rounded-full -mt-10 border-4 border-[#050505] shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-105 active:scale-95 transition-all">
+          <Radio size={24} />
+        </Link>
+
+        <Link to="/leaderboard" className="p-2 text-gray-500 hover:text-orange-400 transition-colors"><Trophy size={24} /></Link>
+        <Link to="/profile" className="p-2 text-gray-500 hover:text-orange-400 transition-colors"><User size={24} /></Link>
       </nav>
     </div>
   )

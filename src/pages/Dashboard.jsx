@@ -2,14 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAudio } from '../context/AudioContext' 
-import { Play, Pause, LogOut, Search, Download, Heart, Disc3, User, Trophy, MessageSquare, Home, Flame, Radio } from 'lucide-react'
+import { Play, Pause, LogOut, Heart, Disc3, User, Trophy, MessageSquare, Home, Flame, Radio } from 'lucide-react'
 
-const CATEGORIES = ["Trending Hits", "Hev Abi", "OPM Viral", "Al James", "Hip-Hop", "Pop"]
+const CATEGORIES = ["Trending Hits", "Hev Abi", "OPM Viral", "Al James", "Pop"]
 
 export default function Dashboard() {
   const [tracks, setTracks] = useState([])
   const [savedTracks, setSavedTracks] = useState([])
-  const [searchQuery, setSearchQuery] = useState('') 
   const [activeCategory, setActiveCategory] = useState("Trending Hits")
   const [loading, setLoading] = useState(true)
   
@@ -19,7 +18,7 @@ export default function Dashboard() {
   useEffect(() => { 
     fetchMusic(activeCategory) 
     fetchSavedTracks() 
-  }, [])
+  }, [activeCategory])
 
   const fetchSavedTracks = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -30,39 +29,16 @@ export default function Dashboard() {
 
   const fetchMusic = async (query) => {
     setLoading(true)
-    setActiveCategory(query)
     try {
-      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=30`)
+      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=25`)
       const json = await res.json()
       if (json.results) {
         setTracks(json.results.map(t => ({
-          id: t.trackId.toString(),
-          title: t.trackName,
-          artist: t.artistName,
-          file_url: t.previewUrl,
-          download_url: t.previewUrl,
-          cover_image: t.artworkUrl100?.replace('100x100bb', '600x600bb')
+          id: t.trackId.toString(), title: t.trackName, artist: t.artistName, file_url: t.previewUrl, download_url: t.previewUrl, cover_image: t.artworkUrl100?.replace('100x100bb', '600x600bb')
         })))
       }
     } catch (err) { console.error(err) }
     setLoading(false)
-  }
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      setActiveCategory("Search Results")
-      fetchMusic(searchQuery)
-    }
-  }
-
-  const handleDownload = async (e, track) => {
-    e.stopPropagation()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: profile } = await supabase.from('profiles').select('download_count').eq('id', user.id).single()
-    await supabase.from('profiles').update({ download_count: (profile?.download_count || 0) + 1 }).eq('id', user.id)
-    window.open(track.download_url, '_blank')
   }
 
   const handleLike = async (e, track) => {
@@ -89,18 +65,14 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 mt-8">
-        <form onSubmit={handleSearchSubmit} className="mb-6 flex gap-2">
-          <div className="relative flex-1 group">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-orange-500" />
-            <input type="text" placeholder="Search tracks, artists..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white/5 rounded-2xl border border-white/10 focus:border-orange-500 outline-none font-bold" />
-          </div>
-          <button type="submit" className="px-6 bg-orange-500 text-black font-black uppercase rounded-2xl hover:bg-orange-400">Search</button>
-        </form>
+        <div className="mb-8">
+          <h2 className="text-4xl font-black italic uppercase tracking-tighter">Daily <span className="text-orange-500">Mix</span></h2>
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Curated for you</p>
+        </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-8 pb-2">
           {CATEGORIES.map(cat => (
-            <button key={cat} onClick={() => fetchMusic(cat)}
+            <button key={cat} onClick={() => setActiveCategory(cat)}
               className={`px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all border 
               ${activeCategory === cat ? 'bg-orange-500 text-black border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.3)]' : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'}`}>
               {cat === "Trending Hits" ? <span className="flex items-center gap-1"><Flame size={12}/> {cat}</span> : cat}
@@ -108,25 +80,20 @@ export default function Dashboard() {
           ))}
         </div>
 
-        <div className="space-y-3 text-left">
-          {loading ? <div className="text-center py-20 animate-pulse text-gray-600 font-black uppercase tracking-widest">Loading Vibes...</div> : 
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {loading ? <div className="col-span-full text-center py-20 animate-pulse text-gray-600 font-black uppercase tracking-widest">Loading Feed...</div> : 
             tracks.map((item, index) => (
-              <div key={item.id} onClick={() => playTrack(index, tracks)} className={`p-3 bg-[#0A0A0A] rounded-2xl flex items-center justify-between border group cursor-pointer transition-all ${currentTrack?.file_url === item.file_url ? 'border-orange-500/30 bg-orange-500/5' : 'border-white/5 hover:border-white/10'}`}>
-                <div className="flex items-center gap-4 truncate">
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-black">
-                    <img src={item.cover_image} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                       {currentTrack?.file_url === item.file_url && isPlaying ? <Pause size={18}/> : <Play size={18}/>}
-                    </div>
-                  </div>
-                  <div className="truncate">
-                    <h4 className={`text-sm font-black uppercase italic truncate ${currentTrack?.file_url === item.file_url ? 'text-orange-500' : 'text-white'}`}>{item.title}</h4>
-                    <p className="text-[10px] text-gray-500 uppercase font-bold">{item.artist}</p>
+              <div key={item.id} onClick={() => playTrack(index, tracks)} className="bg-[#0A0A0A] p-3 rounded-2xl border border-white/5 hover:border-orange-500/50 cursor-pointer group transition-all">
+                <div className="relative aspect-square rounded-xl overflow-hidden mb-3">
+                  <img src={item.cover_image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {currentTrack?.file_url === item.file_url && isPlaying ? <Pause size={24}/> : <Play size={24}/>}
                   </div>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <button onClick={(e) => handleLike(e, item)} className="p-3 bg-white/5 rounded-xl hover:bg-orange-500/20 transition-all"><Heart size={18} className={savedTracks.some(st => st.track_id === item.id) ? "text-orange-500 fill-orange-500" : "text-gray-600"} /></button>
-                  <button onClick={(e) => handleDownload(e, item)} className="p-3 bg-white/5 rounded-xl text-gray-600 hover:text-white transition-all"><Download size={18} /></button>
+                <h4 className={`text-xs font-black uppercase italic truncate ${currentTrack?.file_url === item.file_url ? 'text-orange-500' : 'text-white'}`}>{item.title}</h4>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-[9px] text-gray-500 uppercase font-bold truncate pr-2">{item.artist}</p>
+                  <button onClick={(e) => handleLike(e, item)}><Heart size={14} className={savedTracks.some(st => st.track_id === item.id) ? "text-orange-500 fill-orange-500" : "text-gray-600 hover:text-white"} /></button>
                 </div>
               </div>
             ))
@@ -134,12 +101,12 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* 🧭 FIXED BOTTOM NAV WITH CENTER RADIO BUTTON */}
+      {/* 🧭 NAV BAR - Center goes to /radio */}
       <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] md:w-[400px] z-40 bg-[#0A0A0A]/90 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] px-6 py-3 flex justify-between shadow-2xl items-center">
         <Link to="/dashboard" className="p-2 text-orange-500 transition-colors"><Home size={24} /></Link>
         <Link to="/chat" className="p-2 text-gray-500 hover:text-orange-400 transition-colors"><MessageSquare size={24} /></Link>
         
-        <Link to="/dashboard" className="p-4 bg-orange-500 text-black rounded-full -mt-10 border-4 border-[#050505] shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-105 active:scale-95 transition-all">
+        <Link to="/radio" className="p-4 bg-orange-500 text-black rounded-full -mt-10 border-4 border-[#050505] shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-105 active:scale-95 transition-all">
           <Radio size={24} />
         </Link>
 

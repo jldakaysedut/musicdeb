@@ -7,6 +7,7 @@ import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import RadioHub from './pages/RadioHub' // 👈 BAGONG IMPORT
 import Profile from './pages/Profile'
 import Leaderboard from './pages/Leaderboard'
 import Chat from './pages/Chat'
@@ -20,16 +21,14 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/radio" element={<RadioHub />} /> {/* 👈 BAGONG ROUTE */}
         <Route path="/profile" element={<Profile />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
-      
-      {/* 📻 THE GLOBAL RADIO: Lilitaw sa lahat ng pages! */}
       <GlobalPlayer />
-      
     </AudioProvider>
   )
 }

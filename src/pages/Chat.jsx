@@ -1,274 +1,172 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Send, MessageSquare, User, Home, Trophy, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { useAudio } from '../context/AudioContext'
+import { Home, MessageSquare, Trophy, User, Send, ChevronLeft, Disc3 } from 'lucide-react'
 
 export default function Chat() {
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
-  const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  
-  // 🟢 NEW: Epic 4 States for Real-time Features
-  const [onlineUsers, setOnlineUsers] = useState([])
-  const [typingUsers, setTypingUsers] = useState([])
-  const channelRef = useRef(null) 
-  const typingTimeoutRef = useRef({})
-
   const messagesEndRef = useRef(null)
-  const navigate = useNavigate()
+
+  // 🎧 Ginagamit natin ito para malaman kung may Radio Bar na nakaharang
+  const { currentTrack } = useAudio()
 
   useEffect(() => {
-    checkUserAndFetch()
-  }, [])
+    const fetchUserAndMessages = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setCurrentUser(user)
 
-  // 🟢 NEW: Initialize Complex WebSockets only AFTER we have the user profile
-  useEffect(() => {
-    if (!userProfile) return
+      // Kunin ang last 50 messages kasama ang profile (username at avatar)
+      const { data } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          profiles:user_id (username, avatar_url)
+        `)
+        .order('created_at', { ascending: true })
+        .limit(50)
 
-    // 1. Create a specialized channel for the Global Lounge
-    const room = supabase.channel('global_lounge', {
-      config: {
-        presence: { key: userProfile.username },
-        broadcast: { self: false }
-      }
-    })
+      if (data) setMessages(data)
+      setLoading(false)
+    }
 
-    // 2. PRESENCE: Sync who is online
-    room.on('presence', { event: 'sync' }, () => {
-      const state = room.presenceState()
-      // Extract unique usernames from the presence state
-      const usersOnline = Object.keys(state).map(key => state[key][0].username)
-      setOnlineUsers(usersOnline)
-    })
+    fetchUserAndMessages()
 
-    // 3. BROADCAST: Listen for typing events
-    room.on('broadcast', { event: 'typing' }, ({ payload }) => {
-      const typist = payload.username
-      
-      setTypingUsers(prev => prev.includes(typist) ? prev : [...prev, typist])
-
-      // Clear the user from typing list after 2 seconds of silence
-      if (typingTimeoutRef.current[typist]) clearTimeout(typingTimeoutRef.current[typist])
-      typingTimeoutRef.current[typist] = setTimeout(() => {
-        setTypingUsers(prev => prev.filter(u => u !== typist))
-      }, 2000)
-    })
-
-    // 4. POSTGRES: Listen for actual new messages
-    room.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-      fetchMessages() 
-    })
-
-    // Subscribe and announce presence
-    room.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await room.track({ username: userProfile.username, avatar_url: userProfile.avatar_url })
-      }
-    })
-
-    channelRef.current = room
+    // 📡 Real-time Listener: Kapag may nag-chat, papasok agad dito!
+    const channel = supabase
+      .channel('public:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+        // Kunin yung profile nung nag-send para may pangalan at picture
+        const { data: profileData } = await supabase.from('profiles').select('username, avatar_url').eq('id', payload.new.user_id).single()
+        const newMsg = { ...payload.new, profiles: profileData }
+        setMessages(prev => [...prev, newMsg])
+      })
+      .subscribe()
 
     return () => {
-      supabase.removeChannel(room)
-      Object.values(typingTimeoutRef.current).forEach(clearTimeout)
+      supabase.removeChannel(channel)
     }
-  }, [userProfile])
+  }, [])
 
+  // Auto-scroll pababa kapag may bagong message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, typingUsers])
+  }, [messages])
 
-  const checkUserAndFetch = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { navigate('/login'); return }
-    setCurrentUser(user)
-
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-    setUserProfile(profile)
-
-    await fetchMessages()
-    setLoading(false)
-  }
-
-  const fetchMessages = async () => {
-    const { data } = await supabase
-      .from('messages')
-      .select('*, profiles(username, avatar_url)')
-      .order('created_at', { ascending: true })
-    
-    if (data) setMessages(data)
-  }
-
-  // 🟢 NEW: Send typing broadcast when user types
-  const handleType = (e) => {
-    setNewMessage(e.target.value)
-    if (channelRef.current && e.target.value.trim() !== '') {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: { username: userProfile.username }
-      }).catch(err => console.error(err))
-    }
-  }
-
-  const sendMessage = async (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault()
-    const content = newMessage.trim()
-    if (!content) return
+    if (!newMessage.trim() || !currentUser) return
 
-    setNewMessage('')
+    const msg = newMessage.trim()
+    setNewMessage('') // Clear input agad para mabilis (Optimistic UI)
 
-    // Optimistic UI Update
-    const optimisticMsg = {
-      id: Date.now(),
-      content: content,
-      user_id: currentUser.id,
-      created_at: new Date().toISOString(),
-      profiles: {
-        username: userProfile?.username || 'You',
-        avatar_url: userProfile?.avatar_url || null
-      }
-    }
-    setMessages(prev => [...prev, optimisticMsg])
-
-    // Background Save
-    const { error } = await supabase.from('messages').insert([
-      { content: content, user_id: currentUser.id }
+    // Note: Siguraduhin na 'content' ang pangalan ng column sa database mo para sa message text!
+    await supabase.from('messages').insert([
+      { user_id: currentUser.id, content: msg } 
     ])
-
-    if (error) fetchMessages()
   }
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center">
-      <div className="w-10 h-10 border-4 border-orange-500/10 border-t-orange-500 rounded-full animate-spin"></div>
-    </div>
-  )
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#050505] text-white font-sans selection:bg-orange-500 selection:text-black">
-      
-      {/* 1. STICKY HEADER WITH ONLINE STATUS */}
-      <header className="bg-black/80 backdrop-blur-2xl border-b border-white/5 p-5 sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-[#050505] text-white pb-[280px] relative">
+      <div className="max-w-2xl mx-auto">
+        
+        {/* HEADER */}
+        <header className="flex items-center justify-between p-6 sticky top-0 bg-black/80 backdrop-blur-xl z-40 border-b border-white/5">
           <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="p-2 bg-white/5 rounded-full hover:text-orange-500 transition-all">
-              <ArrowLeft size={20} />
+            <Link to="/dashboard" className="p-3 bg-white/5 rounded-2xl hover:bg-orange-500 hover:text-black transition-all text-gray-400">
+              <ChevronLeft size={20}/>
             </Link>
             <div>
-              <h1 className="text-xl font-black tracking-tighter uppercase italic">Global <span className="text-orange-500">Lounge</span></h1>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
-                <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">{onlineUsers.length} Online Now</span>
-              </div>
+              <h1 className="text-xl font-black italic uppercase tracking-tighter">Global <span className="text-orange-500">Lounge</span></h1>
+              <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Online
+              </p>
             </div>
           </div>
-          
-          {/* Avatar Stack for Online Users */}
-          <div className="hidden md:flex items-center gap-2">
-            <Users size={16} className="text-gray-500" />
-            <div className="flex -space-x-2">
-              {onlineUsers.slice(0, 3).map((user, i) => (
-                <div key={i} className="w-7 h-7 rounded-full bg-[#111] border-2 border-black flex items-center justify-center text-[8px] font-black text-orange-500 uppercase z-10">
-                  {user.substring(0, 2)}
+        </header>
+
+        {/* CHAT AREA */}
+        <main className="p-6 space-y-6">
+          {loading ? (
+             <div className="text-center py-20 text-gray-600 uppercase font-black tracking-widest text-[10px]">Loading Lounge...</div>
+          ) : messages.length === 0 ? (
+             <div className="text-center py-20 bg-white/[0.02] rounded-3xl border border-white/5 border-dashed">
+               <MessageSquare size={32} className="mx-auto text-gray-700 mb-3" />
+               <p className="text-gray-500 font-black text-[10px] uppercase tracking-widest">Walang tao. Maging unang mag-chat!</p>
+             </div>
+          ) : (
+            messages.map((msg, index) => {
+              const isMe = msg.user_id === currentUser?.id
+              return (
+                <div key={msg.id || index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`flex gap-3 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    
+                    {/* AVATAR */}
+                    <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 shrink-0 overflow-hidden flex items-center justify-center">
+                      {msg.profiles?.avatar_url ? (
+                        <img src={msg.profiles.avatar_url} className="w-full h-full object-cover" alt="avatar" />
+                      ) : (
+                        <User size={14} className="text-gray-500" />
+                      )}
+                    </div>
+
+                    {/* MESSAGE BUBBLE */}
+                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 mx-1 italic">
+                        {msg.profiles?.username || 'User'}
+                      </span>
+                      <div className={`p-4 text-sm font-medium leading-relaxed ${
+                        isMe 
+                        ? 'bg-orange-500 text-black rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl rounded-br-sm shadow-[0_5px_15px_rgba(249,115,22,0.15)]' 
+                        : 'bg-[#141414] text-white rounded-tl-2xl rounded-tr-2xl rounded-bl-sm rounded-br-2xl border border-white/5'
+                      }`}>
+                        {/* Gamitin ang msg.text kung 'text' ang DB column niyo imbes na msg.content */}
+                        {msg.content || msg.text} 
+                      </div>
+                    </div>
+
+                  </div>
                 </div>
-              ))}
-              {onlineUsers.length > 3 && (
-                <div className="w-7 h-7 rounded-full bg-white/10 border-2 border-black flex items-center justify-center text-[8px] font-black text-white z-0">
-                  +{onlineUsers.length - 3}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+              )
+            })
+          )}
+          {/* Scroll Anchor */}
+          <div ref={messagesEndRef} />
+        </main>
+      </div>
 
-      {/* 2. CHAT AREA */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 max-w-3xl mx-auto w-full flex flex-col gap-6 pb-40 no-scrollbar relative">
-        {messages.map((msg) => {
-          const isMe = msg.user_id === currentUser?.id
-
-          return (
-            <div key={msg.id} className={`flex gap-3 w-full animate-in fade-in slide-in-from-bottom-2 duration-300 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-              
-              <div className={`w-9 h-9 rounded-xl border border-white/10 shrink-0 overflow-hidden bg-[#111] ${isMe ? 'border-orange-500/40' : ''}`}>
-                {msg.profiles?.avatar_url ? (
-                  <img src={msg.profiles.avatar_url} alt="avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-800"><User size={18} /></div>
-                )}
-              </div>
-
-              <div className={`flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}`}>
-                {!isMe && <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1.5 px-1">@{msg.profiles?.username}</span>}
-                
-                <div className={`px-5 py-3.5 rounded-2xl shadow-2xl leading-relaxed ${isMe ? 'bg-orange-500 text-black font-bold rounded-tr-none' : 'bg-white/[0.04] text-gray-200 border border-white/5 rounded-tl-none'}`}>
-                  <p className="text-sm font-medium">{msg.content}</p>
-                </div>
-                
-                <span className="text-[8px] font-black text-gray-700 uppercase mt-2 tracking-widest">
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            </div>
-          )
-        })}
-        
-        {/* 🟢 NEW: Typing Indicator Bubble */}
-        {typingUsers.length > 0 && (
-          <div className="flex gap-3 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="w-9 h-9 rounded-xl border border-white/5 shrink-0 bg-white/[0.02] flex items-center justify-center">
-              <span className="flex gap-1">
-                <span className="w-1 h-1 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                <span className="w-1 h-1 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                <span className="w-1 h-1 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-              </span>
-            </div>
-            <div className="flex items-end">
-               <span className="text-[10px] text-orange-500 font-black uppercase tracking-widest italic">
-                 {typingUsers.join(', ')} {typingUsers.length > 1 ? 'are' : 'is'} syncing...
-               </span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} /> 
-      </main>
-
-      {/* 3. INPUT AREA WITH BROADCAST TRIGGER */}
-      <div className="fixed bottom-24 w-full z-40 px-4">
-        <form onSubmit={sendMessage} className="max-w-2xl mx-auto flex items-center gap-3 bg-[#0A0A0A]/90 backdrop-blur-3xl border border-white/10 p-2 rounded-[2rem] shadow-2xl shadow-orange-500/5">
+      {/* 📝 CHAT INPUT PANEL */}
+      <div className={`fixed left-1/2 -translate-x-1/2 w-[92%] max-w-2xl z-40 transition-all duration-300 ${
+        currentTrack ? 'bottom-[180px]' : 'bottom-[100px]'
+      }`}>
+        <form onSubmit={handleSendMessage} className="bg-[#141414]/90 backdrop-blur-2xl border border-white/10 p-2 rounded-[2rem] flex items-center gap-2 shadow-2xl">
           <input 
             type="text" 
-            value={newMessage} 
-            onChange={handleType} // Trigger broadcast
-            placeholder="Broadcast your thoughts..." 
-            className="flex-1 bg-transparent px-5 py-3 focus:outline-none text-white font-bold text-sm placeholder-gray-800"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Send a message..." 
+            className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-sm font-medium text-white placeholder-gray-600"
           />
           <button 
             type="submit" 
             disabled={!newMessage.trim()}
-            className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-black disabled:opacity-10 transition-all hover:scale-105 active:scale-90 shadow-lg shrink-0"
+            className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-black hover:bg-orange-400 disabled:opacity-50 disabled:bg-white/10 disabled:text-gray-600 transition-all shrink-0"
           >
-            <Send size={18} strokeWidth={3} className="ml-0.5" />
+            <Send size={18} className="ml-1" />
           </button>
         </form>
       </div>
 
-      {/* 4. NAVIGATION */}
-      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-4 shadow-2xl flex justify-around items-center">
-        <Link to="/dashboard" className="p-2 text-gray-600"><Home size={22} /></Link>
-        <Link to="/chat" className="p-2 text-orange-500"><MessageSquare size={22} /></Link>
-        <Link to="/leaderboard" className="p-2 text-gray-600"><Trophy size={22} /></Link>
-        <Link to="/profile" className="p-2 text-gray-600"><User size={22} /></Link>
+      {/* 🧭 FIXED BOTTOM NAV */}
+      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[400px] z-50 bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-4 flex justify-around shadow-2xl items-center">
+        <Link to="/dashboard" className="p-2 text-gray-600 hover:text-white transition-colors"><Home size={24} /></Link>
+        <Link to="/chat" className="p-2 text-orange-500"><MessageSquare size={24} /></Link>
+        <Link to="/leaderboard" className="p-2 text-gray-600 hover:text-white transition-colors"><Trophy size={24} /></Link>
+        <Link to="/profile" className="p-2 text-gray-600 hover:text-white transition-colors"><User size={24} /></Link>
       </nav>
-
-      <footer className="hidden md:block absolute bottom-8 right-12 opacity-20">
-         <p className="text-[8px] font-black uppercase tracking-[0.5em] italic">
-          Handcrafted by <span className="text-white">Dakay</span>
-        </p>
-      </footer>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Disc3, ArrowRight, Play, Shield, Smartphone, Zap, Github, Twitter, Instagram } from 'lucide-react'
+import { Disc3, ArrowRight, Play, Shield, Smartphone, Zap } from 'lucide-react'
 export default function Landing() {
   const [scrolled, setScrolled] = useState(false)
 
@@ -135,11 +135,11 @@ export default function Landing() {
             <span className="text-xl font-black tracking-tight">JamList.</span>
           </div>
           <p className="text-gray-500 text-sm">© 2026 Crafted for Audiophiles. All rights reserved.</p>
-          <div className="flex gap-4">
-            <a href="#" className="text-gray-500 hover:text-green-400 transition"><Github size={20} /></a>
-            <a href="#" className="text-gray-500 hover:text-green-400 transition"><Twitter size={20} /></a>
-            <a href="#" className="text-gray-500 hover:text-green-400 transition"><Instagram size={20} /></a>
-          </div>
+         <div className="flex gap-6 text-sm font-bold">
+  <a href="#" className="text-gray-500 hover:text-green-500 transition-colors">GitHub</a>
+  <a href="#" className="text-gray-500 hover:text-green-500 transition-colors">Twitter</a>
+  <a href="#" className="text-gray-500 hover:text-green-500 transition-colors">Instagram</a>
+</div>
         </div>
       </footer>
 

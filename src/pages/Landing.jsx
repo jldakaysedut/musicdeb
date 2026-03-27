@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Disc3, ArrowRight, Play, Heart, BarChart2, Shield, Smartphone, Zap, Github, Twitter, Instagram } from 'lucide-react'
-
+import { Disc3, ArrowRight, Play, Shield, Smartphone, Zap, Github, Twitter, Instagram } from 'lucide-react'
 export default function Landing() {
   const [scrolled, setScrolled] = useState(false)
 
